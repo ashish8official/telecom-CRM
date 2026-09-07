@@ -120,5 +120,51 @@ The CRM database will be a normalized PostgreSQL schema, highly decoupled from t
 | **Identifiers** | Using email/phone as PK makes updates impossible. | Use `UUID` for PK. Store email/phone in `contact_medium`. | Contact details change; primary identity references must remain stable. | CRITICAL |
 | **External IDs** | Mapping to multiple legacy systems via columns (`legacy_id_1`). | Create `external_identifier` table with `source_system` and `identifier_value`. | Supports N-number of external system integrations without schema changes. | HIGH |
 
+
+---
+
+## 6. Task 03.1 Decision Refinements
+
+The following architectural decisions have been refined prior to implementation.
+
+### 6.1 Party → Customer Cardinality
+* **Final Decision:** A Party may have **at most one active Customer relationship per tenant**.
+* **Rationale & Strategy:** To prevent accidental duplication, a partial unique index will be enforced: `CREATE UNIQUE INDEX idx_unique_active_customer ON customer(tenant_id, party_id) WHERE deleted_at IS NULL;`. This allows keeping historical soft-deleted customer profiles for a party, while ensuring only one active profile exists.
+
+### 6.2 Consent Lifecycle Refinement
+* **Final Decision:** Consent is not strictly "immutable rows", but follows an auditable lifecycle. 
+* **State Model:** `GRANTED`, `ACTIVE`, `WITHDRAWN`, `EXPIRED`.
+* **Required Fields:** `capture_timestamp`, `withdrawal_timestamp`, `capture_channel`, `evidence_reference`, `recorded_by`.
+* **Rationale:** Changes to consent (like revocation) update the existing row's status and `withdrawal_timestamp`. Auditability is preserved via application-level event sourcing or strict audit triggers, rather than forcing the `consent` table itself to be append-only.
+
+### 6.3 Status History Integrity Review
+* **Final Decision:** Abandon the generic polymorphic `status_history` table in favor of **domain-specific status history tables** (e.g., `customer_status_history`, `account_status_history`).
+* **Alternatives Considered:** Polymorphic `status_history(entity_type, entity_id)`.
+* **Trade-offs:** Polymorphism reduces table count but sacrifices referential integrity (cannot enforce FK on `entity_id`). Domain-specific tables guarantee strict database-level foreign key constraints, which is critical for an enterprise CRM's core lifecycle auditing.
+
+### 6.4 Contact Model Simplification
+* **Final Decision:** Remove the `Party Contact Role` junction abstraction. Use a direct 1:N relationship from `Party` to `Contact Medium`.
+* **Structure:** `Contact Medium` will directly contain `party_id`, `medium_type` (e.g. Email), `value`, `purpose` (e.g. `PERSONAL`, `BILLING`), `preferred_flag`, `verification_status`, and validity dates.
+* **Trade-offs:** Eliminating the junction table reduces over-normalization and simplifies queries. A single medium (e.g. an email used for both BILLING and TECHNICAL) can be handled by duplicating the record with a different purpose, or by making purpose an array, but standard row duplication is simpler for Phase 1.
+
+### 6.5 External Identifier Ownership
+* **Final Decision:** Use **Entity-specific external identifier tables** (e.g., `customer_external_identifier`, `account_external_identifier`).
+* **Alternatives Considered:** Polymorphic `external_identifier`.
+* **Trade-offs:** Like status history, prioritizing strict foreign key integrity over table-count reduction is crucial for integration-critical identifiers. 
+
+### 6.6 UUID Strategy Alignment
+* **Final Decision:** **UUIDv4**.
+* **Rationale:** Aligns with the existing Product Catalogue ecosystem. While UUIDv7 provides better index locality, ecosystem consistency and operational simplicity take precedence for Phase 1.
+
+### 6.7 Soft Delete & Uniqueness Policy
+* **Final Decision:** 
+  * **Locally reusable identifiers** (e.g., Mobile, Email in `Contact Medium`) can be reused if the previous owner is soft-deleted. Enforced via partial unique indexes: `UNIQUE(value) WHERE deleted_at IS NULL`.
+  * **Globally non-reusable identifiers** (e.g., `Customer Account Number`, `External Identifiers`) remain locked forever to prevent severe integration collisions. Enforced via standard unique constraints ignoring `deleted_at`.
+
+### 6.8 Duplicate Management Baseline
+* **Final Decision:** Phase 1 implements exact duplicate prevention only.
+* **Phase 1 Implementation:** Exact matching on database uniqueness (partial unique indexes), search indexes for lookup before creation, and external identifier uniqueness.
+* **Future Evolution Path:** True Master Data Management (MDM), fuzzy matching, golden records, and merge workflows are deferred to future phases.
+
 ---
 *End of Document. Awaiting approval before proceeding to implementation / migrations.*
