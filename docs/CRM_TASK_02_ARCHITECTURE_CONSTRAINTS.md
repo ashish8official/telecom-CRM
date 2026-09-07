@@ -1,54 +1,135 @@
-# CRM Architecture Constraints & Integration Design (Task 02)
+# CRM Architecture Constraints & Integration Design (Task 02 & 02.1)
 
-Based on the architectural constraints established for the CRM to Product Catalogue integration, this document outlines the mandatory design principles and the Anti-Corruption Layer (ACL) strategy for the CRM system.
+This document outlines the mandatory design principles, Anti-Corruption Layer (ACL) strategy, and multi-catalogue interoperability model for the CRM system.
 
 ## 1. Core Independence & Partial Success
-The Product Catalogue is treated as an external HTTP dependency. The CRM system must remain fully operational for its core domains regardless of the Catalogue's availability.
+The Product Catalogue is treated as an external HTTP dependency. 
 
-* **Independent Transactions:** CRM operations (Create/Update Customer, Manage Account, Consent, Preferences) will **never** depend on a synchronous call to the Product Catalogue.
-* **Partial Success in UI (Customer 360):** If the Catalogue is unreachable, the Customer 360 view must gracefully degrade. Customer data, accounts, and contacts will load successfully, while the "Available Offers" section will display a controlled "Temporarily Unavailable" state rather than failing the entire page load.
-* **No Raw Exceptions:** Infrastructure exceptions (e.g., `ECONNREFUSED`) from the Catalogue must never surface to the end user.
+* **Independent Transactions:** Core CRM operations (Create/Update Customer, Manage Account, Consent, Preferences) will **never** depend on a successful Product Catalogue API call.
+* **Partial Success in UI (Customer 360):** If the Catalogue is unreachable, the Customer 360 view must gracefully degrade. Customer data, accounts, and contacts will remain `AVAILABLE`, while the Available Offers section will display a controlled `TEMPORARILY UNAVAILABLE` state.
+* **No Raw Exceptions:** Infrastructure exceptions (e.g., connection refused) from the Catalogue must never surface to the user.
 
-## 2. Anti-Corruption Layer (ACL) Architecture
-CRM business logic must remain completely isolated from TMF620 JSON structures. All communication with the Catalogue will pass through a dedicated HTTP Adapter (Anti-Corruption Layer).
+## 2. Multi-Catalogue Interoperability & ACL
+The CRM must not be coupled to a specific Product Catalogue implementation (not even the current internal one). The architecture must support TM Forum TMF620-aligned catalogues, vendor-specific APIs, and future protocols. 
 
-**Flow:**
+**Catalogue Port & Provider Architecture:**
+CRM business logic depends *only* on a CRM-owned internal abstraction (`Catalogue Port`). A `Catalogue Provider Resolver` delegates calls to the appropriate `Provider Adapter`.
+
 ```text
-[CRM Application Layer / Domain Services]
-   │
-   ▼ (Consumes CRM-Owned Interface & Internal DTOs)
-[Catalogue Port / Interface]
-   │
-   ▼ (Implements Port)
-[Catalogue HTTP Adapter]
-   ├── TMF620 Request Mapping (CRM Context -> TMF620 Query)
-   ├── HTTP Transport (Axios/Fetch with resilience logic)
-   └── TMF620 Response Mapping (TMF620 JSON -> CRM Internal DTO)
-   │
-   ▼
-[External Product Catalogue API]
+                       CRM Application Layer
+                                │
+                                ▼ (Consumes CRM Canonical DTOs)
+                         Catalogue Port
+                                │
+                                ▼
+                   Catalogue Provider Resolver
+                                │
+           ┌────────────────────┼────────────────────┐
+           │                    │                    │
+           ▼                    ▼                    ▼
+   Internal Catalogue        Generic               Vendor
+        Adapter           TMF620 Adapter          Adapter
+           │                    │                    │
+           ▼                    ▼                    ▼
+      Catalogue A          Catalogue B          Catalogue C
 ```
-This ensures that if the Catalogue upgrades from TMF620 v5 to v6, only the `Catalogue HTTP Adapter` requires modification; the CRM domain remains untouched.
 
-## 3. Eligibility Boundary (No Duplication)
-CRM owns customer **facts** (Category, Segment, Market, Account Type), but the Product Catalogue owns **commercial eligibility evaluation** (Dependencies, Exclusions, Stacking rules).
+## 3. CRM Canonical Catalogue Model
+CRM will define its own canonical representation of catalogue results (e.g., `AvailableOffer` with fields like `offeringId`, `name`, `priceSummary`). 
+* The canonical model must **not** blindly mirror TMF620 structures. 
+* Each Provider Adapter is responsible for mapping its external response (TMF620 or Vendor-specific) into the CRM Canonical Catalogue Model, insulating CRM from version differences and vendor extensions.
 
-* CRM will build a "Customer Eligibility Context" payload and pass it to the Catalogue Adapter.
-* CRM will **not** attempt to interpret product dependency rules or bundle compatibility locally.
-* **Identified API Gap:** As noted in Task 01, the current Catalogue API lacks a dedicated Eligibility Discovery endpoint capable of processing these customer facts. This gap must be solved on the Catalogue side in the future. CRM will not build duplicate logic to patch this gap.
+## 4. Capability-Based Integration
+Different catalogues provide different feature sets. CRM integration is capability-aware. 
+Capabilities include: `PRODUCT_OFFERING_QUERY`, `PRODUCT_OFFERING_PRICE_QUERY`, `ELIGIBILITY_DISCOVERY`, `BUNDLE_RESOLUTION`, `PRODUCT_RELATIONSHIP_RESOLUTION`.
 
-## 4. Graceful Degradation & Resilience Strategy
-The `Catalogue HTTP Adapter` will implement explicit resilience patterns rather than blindly retrying all failures.
+Adapters will expose their supported capabilities. CRM will not fail if an external catalogue does not support an optional capability (e.g., if `ELIGIBILITY_DISCOVERY` is `NOT_SUPPORTED`).
 
-* **Connection Timeout:** Strict timeout (e.g., 3-5 seconds) for Catalogue read operations to prevent CRM thread starvation.
-* **Retry Policy:** 
-  * *Eligible for retry:* Network timeouts, HTTP 502/503/504 (Transient server errors).
-  * *Not eligible for retry:* HTTP 4xx (Client/Validation errors), HTTP 500 (Internal Server Error indicating a hard failure), Invalid TMF620 responses.
-* **Circuit Breaker:** The adapter will be circuit-breaker ready. Consecutive transient failures will trip the breaker, immediately returning a "Catalogue Unavailable" fallback state without waiting for timeouts, allowing the system to recover.
-* **Controlled Error Mapping:** 
-  * `ECONNREFUSED` / Timeouts → `EXTERNAL_SERVICE_UNAVAILABLE`
-  * Contract shape mismatch → `EXTERNAL_SERVICE_CONTRACT_VIOLATION`
-  * HTTP 4xx → `BUSINESS_RULE_VIOLATION` or `RESOURCE_NOT_FOUND`
+## 5. Customer Eligibility Context Contract
+CRM owns customer facts; Product Catalogue owns commercial eligibility evaluation. CRM must never duplicate eligibility logic, product dependencies, or stacking rules.
 
-## 5. Integration Contract Ownership
-The CRM depends strictly on the published HTTP contract of the Product Catalogue. By isolating this dependency within the `Catalogue HTTP Adapter`, the CRM system protects its core domain from external schema volatility.
+CRM will send a minimal, explicit integration DTO to the Catalogue Adapter:
+* **Fields:** `tenantId`, `customerId`, `customerCategory`, `segment`, `marketId`, `accountType`.
+* **Rules:** It is not a serialized Customer entity. It contains no PII (no consent records, addresses, or emails) unless required by a legitimate future capability.
+
+## 6. Integration Sequence Diagrams
+Offer Discovery flow preventing empty lists from masking failures:
+
+**Successful Offer Discovery**
+```text
+User 
+ │
+ ▼
+CRM 
+ │
+ ▼
+Customer Context Builder 
+ │
+ ▼
+Catalogue Port 
+ │
+ ▼
+Provider Adapter 
+ │
+ ▼
+External Catalogue 
+ │
+ ▼
+Canonical CRM Offer Result
+```
+
+## 7. Integration Result Semantics
+Result states must remain provider-independent to ensure graceful degradation:
+* `AVAILABLE`: Catalogue successfully processed the request.
+* `EMPTY`: Catalogue successfully processed the request, but no offerings matched.
+* `UNAVAILABLE`: The Catalogue could not be reached or processed safely. (An empty offer list must never be used to represent a failure).
+* *(Optional)* `PARTIALLY_AVAILABLE`, `NOT_SUPPORTED`.
+
+## 8. Resilience Roadmap
+**Phase 1:**
+* Connection timeouts (prevent thread starvation).
+* Controlled error mapping (e.g., Timeouts → `EXTERNAL_SERVICE_UNAVAILABLE`, HTTP 4xx → `BUSINESS_RULE_VIOLATION`).
+* Graceful degradation and integration abstraction.
+
+**Future Phases:**
+* Retry strategy for clearly transient failures (HTTP 502/503/504).
+* Circuit breakers to prevent cascading failures.
+* Integration metrics and distributed tracing.
+
+## 9. Domain Ownership Matrix
+Clear separation of System of Record (SoR) to prevent ambiguous ownership:
+
+| Capability / Data | CRM | Product Catalogue | Future Order Mgmt | Future Prod Inventory |
+| :--- | :--- | :--- | :--- | :--- |
+| Party (Individual/Org) | **Owner** | Consumer | Consumer | Consumer |
+| Customer & Account | **Owner** | Consumer | Consumer | Consumer |
+| Contact Info & Consent | **Owner** | - | - | - |
+| Customer Preferences | **Owner** | - | - | - |
+| Customer Segment Facts | **Owner** | Consumer | - | - |
+| Product Specification | Consumer | **Owner** | Consumer | Consumer |
+| Product Offering & Price | Consumer | **Owner** | Consumer | Consumer |
+| Commercial Eligibility Rules | - | **Owner** | - | - |
+| Product Order | - | - | **Owner** | - |
+| Order Lifecycle | Consumer | - | **Owner** | - |
+| Customer Owned Product | Consumer | - | Consumer | **Owner** |
+| Subscription Lifecycle | Consumer | - | Consumer | **Owner** |
+
+## 10. Future Order Management Handoff
+The intended architecture flow for order orchestration:
+
+```text
+[CRM]
+  │ (Customer Facts)
+  ▼
+[Product Catalogue]
+  │ (Commercially Available / Eligible Offerings)
+  ▼
+[Order Management]
+  │ (Product Order)
+  ▼
+[Product Inventory]
+  │ (Customer Owned Product / Subscription)
+  ▼
+[Billing / Charging]
+```
+*Note: CRM does not create Product Orders. Product Catalogue does not own Customer Products. Order Management orchestrates commercial fulfillment, and Product Inventory is the system of record for owned products.*
