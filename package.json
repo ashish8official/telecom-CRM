@@ -7,7 +7,7 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "jest",
     "db:migrate": "node database/migrate.js",
     "db:rollback": "node database/rollback.js",
     "db:seed": "node database/seeds/001_seed_data.js",
@@ -28,5 +28,14 @@
   "dependencies": {
     "dotenv": "^17.4.2",
     "pg": "^8.23.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.4.1",
+    "@types/pg": "^8.23.1",
+    "jest": "^30.5.1",
+    "ts-jest": "^29.4.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
   }
 }
