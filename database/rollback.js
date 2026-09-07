@@ -7,53 +7,62 @@ const connectionString = process.env.DATABASE_URL || 'postgres://postgres:admin@
 
 async function rollback(steps = 1) {
     const client = new Client({ connectionString });
-    await client.connect();
-    
-    const { rows } = await client.query(`
-        SELECT migration_name FROM migrations_history 
-        ORDER BY id DESC LIMIT $1
-    `, [steps]);
+    try {
+        await client.connect();
+        
+        const { rows } = await client.query(`
+            SELECT migration_name FROM migrations_history 
+            ORDER BY id DESC LIMIT $1
+        `, [steps]);
 
-    if (rows.length === 0) {
-        console.log("No migrations to rollback.");
-        await client.end();
-        return;
-    }
-
-    const rollbacksDir = path.join(__dirname, 'rollbacks');
-
-    for (const row of rows) {
-        const migrationName = row.migration_name;
-        const rollbackFile = migrationName.replace('.sql', '_down.sql');
-        const rollbackPath = path.join(rollbacksDir, rollbackFile);
-
-        if (fs.existsSync(rollbackPath)) {
-            console.log(`Rolling back: ${migrationName} using ${rollbackFile}`);
-            const sql = fs.readFileSync(rollbackPath, 'utf8');
-            try {
-                await client.query('BEGIN');
-                await client.query(sql);
-                await client.query('DELETE FROM migrations_history WHERE migration_name = $1', [migrationName]);
-                await client.query('COMMIT');
-                console.log(`Successfully rolled back ${migrationName}`);
-            } catch (err) {
-                await client.query('ROLLBACK');
-                console.error(`Error rolling back ${migrationName}:`, err);
-                process.exit(1);
-            }
-        } else {
-            console.warn(`Rollback file ${rollbackFile} not found for ${migrationName}! Cannot safely rollback.`);
-            process.exit(1);
+        if (rows.length === 0) {
+            console.log("No migrations to rollback.");
+            return;
         }
+
+        const rollbacksDir = path.join(__dirname, 'rollbacks');
+
+        for (const row of rows) {
+            const migrationName = row.migration_name;
+            const rollbackFile = migrationName.replace('.sql', '_down.sql');
+            const rollbackPath = path.join(rollbacksDir, rollbackFile);
+
+            if (fs.existsSync(rollbackPath)) {
+                console.log(`Rolling back: ${migrationName} using ${rollbackFile}`);
+                const sql = fs.readFileSync(rollbackPath, 'utf8');
+                try {
+                    await client.query('BEGIN');
+                    await client.query(sql);
+                    await client.query('DELETE FROM migrations_history WHERE migration_name = $1', [migrationName]);
+                    await client.query('COMMIT');
+                    console.log(`Successfully rolled back ${migrationName}`);
+                } catch (err) {
+                    await client.query('ROLLBACK');
+                    console.error(`Error rolling back ${migrationName}:`, err.message);
+                    throw err; // Stop execution
+                }
+            } else {
+                const errMsg = `Rollback file ${rollbackFile} not found for ${migrationName}! Cannot safely rollback.`;
+                console.error(errMsg);
+                throw new Error(errMsg);
+            }
+        }
+        
+        console.log("Rollback completed.");
+    } catch (err) {
+        console.error("Rollback process failed:", err.message);
+        process.exitCode = 1;
+    } finally {
+        await client.end();
     }
-    
-    console.log("Rollback completed.");
-    await client.end();
 }
 
 if (require.main === module) {
     const steps = process.argv[2] ? parseInt(process.argv[2]) : 1;
-    rollback(steps).catch(console.error);
+    rollback(steps).catch(err => {
+        console.error("Unhandled error during rollback:", err);
+        process.exitCode = 1;
+    });
 }
 
 module.exports = { rollback };

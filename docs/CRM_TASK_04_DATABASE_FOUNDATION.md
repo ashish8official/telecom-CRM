@@ -61,3 +61,22 @@ Database integration tests (`database/tests/db_integration.test.js`) are impleme
 * **Test E:** Soft delete behavior (Row remains, active query filters out) -> Passed.
 
 All constraints and behaviors behave entirely at the database level, requiring no application logic to enforce.
+
+---
+
+## 12. Task 04.1 Infrastructure Hardening
+
+A focused hardening pass was conducted to improve the resilience of the database infrastructure:
+
+* **Resource Lifecycle:** Both the `migrate.js` and `rollback.js` runners now strictly use `try/finally` blocks to guarantee that the `pg.Client` connections close correctly, preventing connection leaks. `process.exit()` deep in the logic was removed in favor of bubbling errors upward and setting `process.exitCode`.
+* **Idempotent Operations:** Migrations will not crash or retry completed files. If a migration fails, it triggers a `ROLLBACK`, the error stops execution, and the failure is NOT recorded in `migrations_history`.
+* **SQLSTATE Assertions:** The integration tests were refactored to rely on canonical PostgreSQL SQLSTATE codes (`error.code`) rather than fragile string matching on `error.message`.
+  * `23505`: Unique Violation
+  * `23503`: Foreign Key Violation
+  * `23514`: Check Violation
+* **Developer Scripts:** Updated `package.json` with standard, isolated npm scripts:
+  * `npm run db:migrate`
+  * `npm run db:rollback`
+  * `npm run db:seed`
+  * `npm run test:db`
+* **Environment Validation:** Created `.env.example` mapping out `DATABASE_URL` and `DEFAULT_DATABASE_URL`. Hardcoded production fallbacks were replaced with environments driven strictly by `.env` (with safe dev defaults) to avoid accidental production pollution. 

@@ -5,9 +5,8 @@ const connectionString = process.env.DATABASE_URL || 'postgres://postgres:admin@
 
 async function seed() {
     const client = new Client({ connectionString });
-    await client.connect();
-
     try {
+        await client.connect();
         await client.query('BEGIN');
 
         console.log("Seeding Demo Tenant...");
@@ -50,14 +49,18 @@ async function seed() {
         console.log("Seeding completed successfully.");
     } catch (err) {
         await client.query('ROLLBACK');
-        console.error("Error during seeding:", err);
+        console.error("Error during seeding:", err.message);
+        process.exitCode = 1;
     } finally {
         await client.end();
     }
 }
 
 if (require.main === module) {
-    seed().catch(console.error);
+    seed().catch(err => {
+        console.error("Unhandled error during seeding:", err);
+        process.exitCode = 1;
+    });
 }
 
 module.exports = { seed };
