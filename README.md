@@ -1,112 +1,105 @@
-# Telecom CRM
+# Telecom CRM Engine
 
-![Node.js](https://img.shields.io/badge/Node.js-18+-green.svg)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.5-blue.svg)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue.svg)
-![Jest](https://img.shields.io/badge/Jest-Tested-brightgreen.svg)
+A modern, multi-tenant, domain-driven Customer Relationship Management (CRM) backend explicitly designed for the telecommunications industry. 
 
-An enterprise-grade, multi-tenant Telecom Customer Relationship Management (CRM) platform, designed with a strict modular monolith architecture and aligned with TM Forum concepts. 
+This repository serves as the core source of truth for **Party**, **Customer**, **Account Hierarchy**, and **Subscriber** relationships. It is strictly architected as a standalone, bounded context—it focuses entirely on the commercial and structural relationships of customers and explicitly defers commercial product configuration (Product Catalogue), order orchestration (OM), and technical network asset management (Inventory/Provisioning) to their respective domains.
 
-This repository acts as an independent, standalone service that handles customer, party, and account management. It integrates with the external Product Catalogue strictly over HTTP via TMF620 REST APIs.
+---
 
-## 🏗️ Architecture
+## 🏗 Core Architectural Principles
 
-* **Modular Monolith:** Internal code is strictly separated into bounded domains (e.g., `Party`, `Customer`, `Account`). 
-* **Layered Design:** Follows Domain-Driven Design (DDD) principles:
-  * `Domain`: Business rules, entities, custom errors, and repository contracts.
-  * `Application`: Orchestrates use cases, input validation, and database transaction boundaries.
-  * `Infrastructure`: Concrete PostgreSQL database implementations and infrastructure adapters.
-* **Multi-Tenancy:** Row-based tenancy utilizing composite foreign keys `(tenant_id, id)` globally to guarantee tenant isolation at the database level.
-* **API First:** (Upcoming) Adheres to TM Forum Open APIs for external integrations.
+- **Domain-Driven Design (DDD):** Organized into strict `domain`, `application`, and `infrastructure` layers. The domain model remains pure and completely unaware of PostgreSQL, Express, or TM Forum API mapping schemas.
+- **Strict Multi-Tenancy:** True horizontal multi-tenancy. Every table uses a composite primary key (`tenant_id`, `id`). All repositories enforce tenant boundaries at the query level.
+- **Atomic Operations:** Critical lifecycle events (e.g., Subscriber status changes) are bundled in strict ACID transactions containing both the state mutation and immutable history log records.
+- **Concurrency & Idempotency:** Optimistic locking (`version` column) handles concurrent write collisions safely. Upstream retries are protected via `idempotency_key` constraints.
+- **Anti-Corruption Layer (ACL):** External market configurations (such as those from a Product Catalogue) are decoupled from the CRM through stable geographic identifiers rather than hardcoded shared database dependencies.
 
-## 🚀 Tech Stack
+---
 
-* **Runtime:** Node.js
-* **Language:** TypeScript
-* **Database:** PostgreSQL (via `pg` native client - NO heavy ORMs)
-* **Testing:** Jest (Unit & Database Integration Tests)
-* **Migrations:** Custom lightweight, transaction-safe migration runner (`migrate.js`)
+## 🎯 Implemented Domains (Task 01 - Task 09)
 
-## 📁 Project Structure
+The CRM currently supports the following core domains:
+
+1. **Party Domain** (`Individual`, `Organization`)
+   - Distinguishes the legal or physical entity from the commercial relationship.
+2. **Customer Domain**
+   - Represents the commercial relationship. Ensures active uniqueness rules (e.g., a Party can only have one active Customer profile per tenant).
+3. **Customer Account Domain**
+   - Supports robust enterprise account hierarchies.
+   - Enforces `MASTER` vs. `CHILD` account logic (e.g., billing responsibility strictly belongs to the Master account, preventing cross-tenant or self-parenting hierarchy loops).
+4. **Geographic & Market Context Contract**
+   - The CRM holds "Customer Facts" (e.g., `GeographicLocationReference`), explicitly pushing "Commercial Rules" out to the Product Catalogue to evaluate eligibility without duplicating logic.
+5. **Telecom Subscriber Domain**
+   - The logical representation of a service relationship (`GSM PREPAID`, `FWA POSTPAID`).
+   - Maintains an explicit lifecycle (`PENDING` ➔ `ACTIVE` ➔ `SUSPENDED` / `BARRED` ➔ `DISCONNECTED` ➔ `TERMINATED`).
+   - Automatically resolves ultimate billing accounts across infinite child-account hierarchies.
+   - *Note: Subscribers are explicitly NOT physical resources. (MSISDN, IMSI, SIM concepts belong in an Inventory Domain, which will attach to the Subscriber later).*
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js** (v18+)
+- **PostgreSQL** (v14+)
+- **TypeScript** 
+
+### Installation
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/ashish8official/telecom-CRM.git
+   cd telecom-CRM
+   ```
+
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Configure Environment:**
+   Set up your connection variables in a `.env` file at the root.
+   ```env
+   DATABASE_URL=postgres://postgres:admin@localhost:5433/crm_db
+   ```
+
+4. **Run Database Migrations:**
+   Ensure your database is running and execute the migration script to apply all schema tables, constraints, and indexes.
+   ```bash
+   npm run db:migrate
+   ```
+
+### Testing
+
+The system separates unit logic from infrastructure validations. 
+- **Unit Tests:** `npm run test:unit`
+- **Integration Tests:** `npm run test:integration` (Requires active local PostgreSQL database)
+- **All Tests:** `npm run test:all`
+
+---
+
+## 📂 Project Structure
 
 ```text
 telecom-CRM/
 ├── backend/
-│   ├── application/     # Use cases and transaction boundaries
-│   ├── domain/          # Business logic, types, and repository interfaces
-│   ├── infrastructure/  # PostgreSQL repositories and DB clients
-│   └── tests/           # Unit and Integration test suites
+│   ├── application/     # Application Use Cases (Commands/Queries)
+│   ├── domain/          # Pure Domain Entities, Types, and Errors
+│   ├── infrastructure/  # PostgreSQL Repositories, Database Transactions
+│   └── tests/           # Unit & Integration Test Suites
 ├── database/
-│   ├── functions/       # Shared DB functions (e.g., trigger functions)
-│   ├── migrations/      # Sequential SQL schema migrations
-│   ├── rollbacks/       # Reversible down-migrations
-│   ├── seeds/           # Deterministic development seed data
-│   ├── migrate.js       # Custom migration runner
-│   └── rollback.js      # Custom rollback runner
-├── docs/                # Architectural Decision Records (ADRs) and Task histories
+│   ├── migrations/      # Sequential .sql schema up-migrations
+│   └── rollbacks/       # Sequential .sql schema down-migrations
+├── docs/                # Architectural Decision Records & Task Definitions
+└── package.json
 ```
-
-## ⚙️ Local Setup
-
-### 1. Prerequisites
-* Node.js (v18+)
-* PostgreSQL (v14+) running locally or via Docker
-
-### 2. Installation
-Clone the repository and install dependencies:
-```bash
-git clone https://github.com/ashish8official/telecom-CRM.git
-cd telecom-CRM
-npm install
-```
-
-### 3. Environment Configuration
-Create a `.env` file in the root directory (refer to `.env.example`):
-```bash
-cp .env.example .env
-```
-Ensure your `DATABASE_URL` and `DEFAULT_DATABASE_URL` point to your local PostgreSQL instance.
-
-## 🗄️ Database Management
-
-The project uses a custom, transaction-safe SQL migration framework.
-
-* **Run Migrations:** Applies all pending `.sql` files in `database/migrations/`
-  ```bash
-  npm run db:migrate
-  ```
-* **Rollback Migrations:** Reverts the last `N` migrations (default is 1)
-  ```bash
-  npm run db:rollback
-  # Or target a specific step count: node database/rollback.js 2
-  ```
-* **Seed Database:** Injects deterministic base data (`DEMO_TELCO`, demo parties)
-  ```bash
-  npm run db:seed
-  ```
-
-## 🧪 Testing
-
-The test suite includes both isolated unit tests and live PostgreSQL integration tests.
-
-* **Run all tests (Unit & Integration):**
-  ```bash
-  npm run test
-  ```
-* **Run Database Integration Tests specifically:**
-  ```bash
-  npm run test:db
-  ```
-  *(Note: Integration tests require a running database and execute safely against isolated test tenant boundaries).*
-
-## 📚 Documentation & History
-
-Extensive architectural constraints and design decisions are logged in the `/docs` directory:
-* [Task 01: CRM Analysis & Catalogue Discovery](./docs/CRM_TASK_01_ANALYSIS.md)
-* [Task 02: Architecture & Integration Constraints](./docs/CRM_TASK_02_ARCHITECTURE_CONSTRAINTS.md)
-* [Task 03: Data Model Architecture Decisions](./docs/CRM_TASK_03_DATA_MODEL_REVIEW.md)
-* [Task 04: Database Foundation & Migrations](./docs/CRM_TASK_04_DATABASE_FOUNDATION.md)
-* [Task 05: Core Party Domain Layer](./docs/CRM_TASK_05_PARTY_DOMAIN.md)
 
 ---
-*Built for enterprise scale, stability, and TM Forum compliance.*
+
+## 🛤 Future Integrations (Explicit Non-Goals Currently)
+To ensure system boundaries remain clean, the following capabilities are explicitly deferred for later integration architectures:
+- **Telecom Resource Inventory:** Physical SIMs, ICCIDs, IMSIs, and MSISDN mapping.
+- **Product Offerings & Subscriptions:** Attaching a Subscriber to a Product Catalogue Offering.
+- **Network Provisioning:** HSS/HLR/PCRF interactions.
+- **Billing & Rating Engine:** Invoice generation, tax calculation, and event rating.
+- **External Interfaces:** Native TM Forum Open API REST Adapters (TMF 629, TMF 632, etc.) will be wrapped in an adapter layer over these core use cases.
