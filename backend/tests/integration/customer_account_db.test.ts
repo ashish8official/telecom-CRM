@@ -37,14 +37,17 @@ describe('Customer Account Database Integration Tests', () => {
         await pool.query(`INSERT INTO tenant (id, tenant_code, name) VALUES ($1, 'CA_B', 'CA Tenant B') ON CONFLICT DO NOTHING`, [tenantB]);
 
         const pA = await pool.query(`INSERT INTO party (tenant_id, party_type) VALUES ($1, 'INDIVIDUAL') RETURNING id`, [tenantA]);
+        await pool.query(`INSERT INTO individual (tenant_id, party_id, first_name, last_name) VALUES ($1, $2, 'A', 'B')`, [tenantA, pA.rows[0].id]);
         const cA = await pool.query(`INSERT INTO customer (tenant_id, party_id) VALUES ($1, $2) RETURNING id`, [tenantA, pA.rows[0].id]);
         customerA_Id = cA.rows[0].id;
 
         const pA2 = await pool.query(`INSERT INTO party (tenant_id, party_type) VALUES ($1, 'INDIVIDUAL') RETURNING id`, [tenantA]);
+        await pool.query(`INSERT INTO individual (tenant_id, party_id, first_name, last_name) VALUES ($1, $2, 'A2', 'B2')`, [tenantA, pA2.rows[0].id]);
         const cA2 = await pool.query(`INSERT INTO customer (tenant_id, party_id) VALUES ($1, $2) RETURNING id`, [tenantA, pA2.rows[0].id]);
         customerA2_Id = cA2.rows[0].id;
 
         const pB = await pool.query(`INSERT INTO party (tenant_id, party_type) VALUES ($1, 'INDIVIDUAL') RETURNING id`, [tenantB]);
+        await pool.query(`INSERT INTO individual (tenant_id, party_id, first_name, last_name) VALUES ($1, $2, 'C', 'D')`, [tenantB, pB.rows[0].id]);
         const cB = await pool.query(`INSERT INTO customer (tenant_id, party_id) VALUES ($1, $2) RETURNING id`, [tenantB, pB.rows[0].id]);
         customerB_Id = cB.rows[0].id;
     });

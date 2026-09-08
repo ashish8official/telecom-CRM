@@ -1,5 +1,6 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { IPartyRepository } from '../../domain/party/PartyRepository';
-import { PartyNotFoundError, ValidationError, PartyDeletedError } from '../../domain/party/PartyErrors';
+import { PartyNotFoundError, PartyDeletedError } from '../../domain/party/PartyErrors';
 
 export class DeleteParty {
     constructor(private repo: IPartyRepository) {}

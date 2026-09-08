@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
-import { ITransactionManager } from '../../application/party/ITransactionManager';
-import { ITransaction } from '../../domain/party/PartyRepository';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
+import { ITransaction } from '../../domain/common/transaction/ITransaction';
 
 export class PostgresTransaction implements ITransaction {
     constructor(private client: PoolClient) {}

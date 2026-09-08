@@ -1,6 +1,6 @@
 import { Pool, PoolClient } from 'pg';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
-import { ITransaction } from '../../domain/party/PartyRepository';
+import { ITransaction } from '../../domain/common/transaction/ITransaction';
 import { CustomerAccount, AccountStatus, AccountLevel, UpdateCustomerAccountInput } from '../../domain/customer_account/CustomerAccountTypes';
 
 export class PostgresCustomerAccountRepository implements ICustomerAccountRepository {

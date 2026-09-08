@@ -1,13 +1,17 @@
+import { GetCustomerByParty } from '../../application/customer/GetCustomerByParty';
 import { CreateCustomer } from '../../application/customer/CreateCustomer';
 import { GetCustomer } from '../../application/customer/GetCustomer';
 import { UpdateCustomer } from '../../application/customer/UpdateCustomer';
 import { ChangeCustomerStatus } from '../../application/customer/ChangeCustomerStatus';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
 import { Customer, CustomerStatus } from '../../domain/customer/CustomerTypes';
-import { IPartyRepository, ITransaction } from '../../domain/party/PartyRepository';
-import { ITransactionManager } from '../../application/party/ITransactionManager';
-import { CustomerAlreadyExistsError, CustomerNotFoundError, InvalidCustomerStateTransitionError, InvalidTemporalDatesError, PartyNotEligibleForCustomerError } from '../../domain/customer/CustomerErrors';
-import { PartyNotFoundError, ValidationError } from '../../domain/party/PartyErrors';
+import { ITransaction } from '../../domain/common/transaction/ITransaction';
+import { IPartyRepository } from '../../domain/party/PartyRepository';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
+import { InvalidTemporalDatesError } from '../../domain/common/errors/InvalidTemporalDatesError';
+import { CustomerAlreadyExistsError, CustomerNotFoundError, InvalidCustomerStateTransitionError, PartyNotEligibleForCustomerError } from '../../domain/customer/CustomerErrors';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
+import { PartyNotFoundError, } from '../../domain/party/PartyErrors';
 import { Party, PartyStatus, PartyType } from '../../domain/party/PartyTypes';
 
 class MockTx implements ITransaction {

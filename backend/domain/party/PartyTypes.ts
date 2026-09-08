@@ -54,3 +54,32 @@ export interface UpdateOrganizationInput {
     establishedDate?: Date;
     updatedBy?: string;
 }
+
+export interface CreateIndividualInput {
+    firstName: string;
+    middleName?: string;
+    lastName: string;
+    title?: string;
+    gender?: string;
+    dateOfBirth?: Date;
+    createdBy?: string;
+}
+
+export interface CreateOrganizationInput {
+    legalName: string;
+    tradingName?: string;
+    registrationNumber?: string;
+    establishedDate?: Date;
+    createdBy?: string;
+}
+
+export interface IndividualDuplicateCriteria {
+    firstName: string;
+    lastName: string;
+}
+
+export interface OrganizationDuplicateCriteria {
+    legalName: string;
+}
+
+export type DuplicateCriteria = IndividualDuplicateCriteria | OrganizationDuplicateCriteria;

@@ -1,12 +1,15 @@
+import { UpdateParty } from '../../application/party/UpdateParty';
 import { CreateIndividualParty } from '../../application/party/CreateIndividualParty';
 import { CreateOrganizationParty } from '../../application/party/CreateOrganizationParty';
 import { DeleteParty } from '../../application/party/DeleteParty';
 import { ChangePartyStatus } from '../../application/party/ChangePartyStatus';
 import { GetParty } from '../../application/party/GetParty';
-import { IPartyRepository, ITransaction } from '../../domain/party/PartyRepository';
-import { ITransactionManager } from '../../application/party/ITransactionManager';
+import { ITransaction } from '../../domain/common/transaction/ITransaction';
+import { IPartyRepository } from '../../domain/party/PartyRepository';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
 import { Individual, Organization, PartyStatus, PartyType } from '../../domain/party/PartyTypes';
-import { InvalidPartyStateTransitionError, PartyNotFoundError, ValidationError } from '../../domain/party/PartyErrors';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
+import { InvalidPartyStateTransitionError, PartyNotFoundError, } from '../../domain/party/PartyErrors';
 
 class MockTx implements ITransaction {
     async commit() {}
@@ -78,7 +81,7 @@ describe('Party Application Use Cases', () => {
     });
 
     test('CreateIndividualParty - Missing fields', async () => {
-        await expect(createInd.execute('T1', { firstName: 'John' })).rejects.toThrow(ValidationError);
+        await expect(createInd.execute('T1', { firstName: 'John' } as any)).rejects.toThrow(ValidationError);
     });
 
     test('CreateOrganizationParty - Success', async () => {

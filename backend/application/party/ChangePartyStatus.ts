@@ -1,5 +1,6 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { IPartyRepository } from '../../domain/party/PartyRepository';
-import { PartyNotFoundError, ValidationError, InvalidPartyStateTransitionError, PartyDeletedError } from '../../domain/party/PartyErrors';
+import { PartyNotFoundError, InvalidPartyStateTransitionError, PartyDeletedError } from '../../domain/party/PartyErrors';
 import { PartyStatus, Party } from '../../domain/party/PartyTypes';
 
 export class ChangePartyStatus {

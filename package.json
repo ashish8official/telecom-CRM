@@ -7,7 +7,10 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "jest",
+    "test": "npm run test:all",
+    "test:unit": "jest backend/tests/unit",
+    "test:integration": "jest backend/tests/integration",
+    "test:all": "jest",
     "db:migrate": "node database/migrate.js",
     "db:rollback": "node database/rollback.js",
     "db:seed": "node database/seeds/001_seed_data.js",
@@ -36,6 +39,6 @@
     "jest": "^30.5.1",
     "ts-jest": "^29.4.12",
     "ts-node": "^10.9.2",
-    "typescript": "^5.5.4"
+    "typescript": "^5.9.3"
   }
 }

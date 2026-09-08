@@ -1,4 +1,4 @@
-import { ITransaction } from '../party/PartyRepository';
+import { ITransaction } from '../common/transaction/ITransaction';
 import { CustomerAccount, AccountStatus, UpdateCustomerAccountInput, AccountLevel } from './CustomerAccountTypes';
 
 export interface ICustomerAccountRepository {

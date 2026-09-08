@@ -39,34 +39,34 @@ describe('Database Integration Tests', () => {
     const tenantA = '33333333-3333-3333-3333-333333333333';
     const tenantB = '44444444-4444-4444-4444-444444444444';
 
-    test('Atomicity Test: Failed subtype creation leaves no orphan Party', async () => {
-        const tx = await txManager.beginTransaction();
-        const client = tx.getConnection();
+        test('Transaction Safety: Failed subtype creation rolls back Party', async () => {
+        // We will pass a firstName that exceeds the VARCHAR(255) limit in the DB.
+        // The CreateIndividualParty usecase will:
+        // 1. begin transaction
+        // 2. successfully insert into party table
+        // 3. fail to insert into individual table due to length violation
+        // 4. catch the error and rollback the transaction
+        // We then verify the party table does not have an orphan record.
         
-        let partyId;
+        const longFirstName = 'a'.repeat(300);
+        let errorCaught = false;
+
+        // Get count before
+        const countBefore = await pool.query('SELECT count(*) FROM party WHERE tenant_id = $1', [tenantA]);
+
         try {
-            // Create party
-            const partyRes = await client.query(
-                `INSERT INTO party (tenant_id, party_type) VALUES ($1, $2) RETURNING id`,
-                [tenantA, PartyType.INDIVIDUAL]
-            );
-            partyId = partyRes.rows[0].id;
-            
-            // Force subtype failure (e.g. violating NOT NULL on last_name)
-            await client.query(
-                `INSERT INTO individual (tenant_id, party_id, first_name) VALUES ($1, $2, $3)`,
-                [tenantA, partyId, 'Test'] // missing last_name
-            );
-            await tx.commit();
-        } catch (err) {
-            await tx.rollback();
-        } finally {
-            tx.release();
+            await createInd.execute(tenantA, { firstName: longFirstName, lastName: 'Doe' });
+        } catch (err: any) {
+            errorCaught = true;
+            // Should be a DB error code for string data right truncation (22001)
+            expect(err.code).toBe('22001');
         }
 
+        expect(errorCaught).toBe(true);
+
         // Verify party was not persisted (rollback succeeded)
-        const check = await pool.query(`SELECT * FROM party WHERE id = $1`, [partyId]);
-        expect(check.rowCount).toBe(0);
+        const countAfter = await pool.query('SELECT count(*) FROM party WHERE tenant_id = $1', [tenantA]);
+        expect(countAfter.rows[0].count).toBe(countBefore.rows[0].count);
     });
 
     test('Tenant Isolation Test: Cross-tenant lookup fails', async () => {

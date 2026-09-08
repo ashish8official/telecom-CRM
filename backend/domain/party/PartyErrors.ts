@@ -1,15 +1,5 @@
-export abstract class DomainError extends Error {
-    constructor(public readonly code: string, message: string, public readonly details?: any) {
-        super(message);
-        this.name = this.constructor.name;
-    }
-}
-
-export class ValidationError extends DomainError {
-    constructor(message: string, details?: any) {
-        super('VALIDATION_ERROR', message, details);
-    }
-}
+import { DomainError } from '../common/errors/DomainError';
+import { ValidationError } from '../common/errors/ValidationError';
 
 export class PartyNotFoundError extends DomainError {
     constructor(id: string, tenantId: string) {

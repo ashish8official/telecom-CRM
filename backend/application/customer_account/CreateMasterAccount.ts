@@ -1,10 +1,12 @@
+import { InvalidTemporalDatesError } from '../../domain/common/errors/InvalidTemporalDatesError';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
-import { ITransactionManager } from '../party/ITransactionManager';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
 import { CreateMasterAccountInput, CustomerAccount, AccountLevel } from '../../domain/customer_account/CustomerAccountTypes';
 import { CustomerNotFoundError } from '../../domain/customer/CustomerErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
-import { InvalidTemporalDatesError } from '../../domain/customer/CustomerErrors';
+import { } from '../../domain/party/PartyErrors';
+import { } from '../../domain/customer/CustomerErrors';
 
 export class CreateMasterAccount {
     constructor(

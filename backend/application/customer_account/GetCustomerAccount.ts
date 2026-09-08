@@ -1,7 +1,8 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { CustomerAccount } from '../../domain/customer_account/CustomerAccountTypes';
 import { CustomerAccountNotFoundError } from '../../domain/customer_account/CustomerAccountErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class GetCustomerAccount {
     constructor(private accountRepo: ICustomerAccountRepository) {}

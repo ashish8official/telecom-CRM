@@ -1,7 +1,8 @@
 import { IPartyRepository } from '../../domain/party/PartyRepository';
-import { ITransactionManager } from './ITransactionManager';
-import { Organization, PartyType } from '../../domain/party/PartyTypes';
-import { ValidationError, InvalidPartyTypeError } from '../../domain/party/PartyErrors';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
+import { Organization, PartyType, CreateOrganizationInput } from '../../domain/party/PartyTypes';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
+import { InvalidPartyTypeError } from '../../domain/party/PartyErrors';
 
 export class CreateOrganizationParty {
     constructor(
@@ -9,12 +10,10 @@ export class CreateOrganizationParty {
         private txManager: ITransactionManager
     ) {}
 
-    async execute(tenantId: string, data: Partial<Organization>): Promise<Organization> {
+    async execute(tenantId: string, data: CreateOrganizationInput): Promise<Organization> {
         if (!tenantId) throw new ValidationError("Tenant ID is required");
         if (!data.legalName) throw new ValidationError("Legal name is required");
-        if (data.partyType && data.partyType !== PartyType.ORGANIZATION) {
-            throw new InvalidPartyTypeError(PartyType.ORGANIZATION, data.partyType);
-        }
+        
 
         const tx = await this.txManager.beginTransaction();
         try {

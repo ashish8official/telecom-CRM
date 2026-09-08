@@ -1,6 +1,7 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { IPartyRepository } from '../../domain/party/PartyRepository';
 import { PartyType, UpdateIndividualInput, UpdateOrganizationInput, Party } from '../../domain/party/PartyTypes';
-import { PartyNotFoundError, ValidationError, PartyDeletedError } from '../../domain/party/PartyErrors';
+import { PartyNotFoundError, PartyDeletedError } from '../../domain/party/PartyErrors';
 
 export class UpdateParty {
     constructor(private repo: IPartyRepository) {}

@@ -1,7 +1,8 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
 import { Customer, CustomerStatus } from '../../domain/customer/CustomerTypes';
 import { CustomerNotFoundError, InvalidCustomerStateTransitionError } from '../../domain/customer/CustomerErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class ChangeCustomerStatus {
     constructor(private customerRepo: ICustomerRepository) {}

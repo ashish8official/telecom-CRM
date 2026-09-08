@@ -1,6 +1,7 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { CustomerAccountHierarchy, AccountLevel } from '../../domain/customer_account/CustomerAccountTypes';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class GetCustomerAccountHierarchy {
     constructor(private accountRepo: ICustomerAccountRepository) {}

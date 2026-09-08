@@ -1,4 +1,4 @@
-import { DomainError } from '../party/PartyErrors';
+import { DomainError } from '../common/errors/DomainError';
 
 export class CustomerNotFoundError extends DomainError {
     constructor(id: string, tenantId: string) {
@@ -30,8 +30,4 @@ export class PartyNotEligibleForCustomerError extends DomainError {
     }
 }
 
-export class InvalidTemporalDatesError extends DomainError {
-    constructor() {
-        super('INVALID_TEMPORAL_DATES', `effectiveTo must be greater than or equal to effectiveFrom`);
-    }
-}
+

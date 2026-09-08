@@ -1,13 +1,14 @@
+import { InvalidTemporalDatesError } from '../../domain/common/errors/InvalidTemporalDatesError';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
 import { IPartyRepository } from '../../domain/party/PartyRepository';
-import { ITransactionManager } from '../party/ITransactionManager';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
 import { CreateCustomerInput, Customer, CustomerStatus } from '../../domain/customer/CustomerTypes';
 import { 
     CustomerAlreadyExistsError, 
-    InvalidTemporalDatesError, 
     PartyNotEligibleForCustomerError 
 } from '../../domain/customer/CustomerErrors';
-import { ValidationError, PartyNotFoundError } from '../../domain/party/PartyErrors';
+import { PartyNotFoundError } from '../../domain/party/PartyErrors';
 
 export class CreateCustomer {
     constructor(

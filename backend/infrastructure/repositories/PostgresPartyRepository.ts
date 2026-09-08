@@ -1,8 +1,45 @@
 import { Pool, PoolClient } from 'pg';
-import { IPartyRepository, ITransaction } from '../../domain/party/PartyRepository';
-import { Individual, Organization, Party, PartyStatus, PartyType, UpdateIndividualInput, UpdateOrganizationInput } from '../../domain/party/PartyTypes';
+import { ITransaction } from '../../domain/common/transaction/ITransaction';
+import { IPartyRepository } from '../../domain/party/PartyRepository';
+import { Individual, Organization, Party, PartyStatus, PartyType, UpdateIndividualInput, UpdateOrganizationInput, CreateIndividualInput, CreateOrganizationInput, DuplicateCriteria } from '../../domain/party/PartyTypes';
 
 export class PostgresPartyRepository implements IPartyRepository {
+
+    private mapToParty(row: any): Party {
+        return {
+            id: row.id,
+            tenantId: row.tenant_id,
+            partyType: row.party_type as PartyType,
+            status: row.status as PartyStatus,
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+            createdBy: row.created_by,
+            updatedBy: row.updated_by
+        };
+    }
+
+    private mapToIndividual(partyRow: any, indRow: any): Individual {
+        return {
+            ...this.mapToParty(partyRow),
+            firstName: indRow.first_name,
+            lastName: indRow.last_name,
+            middleName: indRow.middle_name,
+            title: indRow.title,
+            gender: indRow.gender,
+            dateOfBirth: indRow.date_of_birth
+        } as Individual;
+    }
+
+    private mapToOrganization(partyRow: any, orgRow: any): Organization {
+        return {
+            ...this.mapToParty(partyRow),
+            legalName: orgRow.legal_name,
+            tradingName: orgRow.trading_name,
+            registrationNumber: orgRow.registration_number,
+            establishedDate: orgRow.established_date
+        } as Organization;
+    }
+
     constructor(private pool: Pool) {}
 
     private getClient(tx?: ITransaction): PoolClient | Pool {
@@ -67,12 +104,12 @@ export class PostgresPartyRepository implements IPartyRepository {
 
         if (party.party_type === PartyType.INDIVIDUAL) {
             const indRes = await client.query(`SELECT * FROM individual WHERE tenant_id = $1 AND party_id = $2`, [tenantId, partyId]);
-            return { ...party, ...indRes.rows[0], id: party.id } as Individual;
+            return this.mapToIndividual(party, indRes.rows[0]);
         } else if (party.party_type === PartyType.ORGANIZATION) {
             const orgRes = await client.query(`SELECT * FROM organization WHERE tenant_id = $1 AND party_id = $2`, [tenantId, partyId]);
-            return { ...party, ...orgRes.rows[0], id: party.id } as Organization;
+            return this.mapToOrganization(party, orgRes.rows[0]);
         }
-        return party as Party;
+        return this.mapToParty(party);
     }
 
     async updateIndividual(tenantId: string, partyId: string, data: UpdateIndividualInput, tx?: ITransaction): Promise<Individual> {
@@ -125,24 +162,24 @@ export class PostgresPartyRepository implements IPartyRepository {
         await client.query(`UPDATE party SET deleted_at = NOW() WHERE tenant_id = $1 AND id = $2 AND deleted_at IS NULL`, [tenantId, partyId]);
     }
 
-    async findPotentialDuplicates(tenantId: string, type: 'INDIVIDUAL' | 'ORGANIZATION', criteria: any, tx?: ITransaction): Promise<Party[]> {
+    async findPotentialDuplicates(tenantId: string, type: 'INDIVIDUAL' | 'ORGANIZATION', criteria: DuplicateCriteria, tx?: ITransaction): Promise<Party[]> {
         const client = this.getClient(tx);
-        if (type === 'INDIVIDUAL' && criteria.firstName && criteria.lastName) {
+        if (type === 'INDIVIDUAL' && ('firstName' in criteria ? criteria.firstName : null) && ('lastName' in criteria ? criteria.lastName : null)) {
             const res = await client.query(
                 `SELECT p.*, i.first_name, i.last_name 
                  FROM party p 
                  JOIN individual i ON p.id = i.party_id AND p.tenant_id = i.tenant_id
                  WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND i.first_name = $2 AND i.last_name = $3`,
-                [tenantId, criteria.firstName, criteria.lastName]
+                [tenantId, ('firstName' in criteria ? criteria.firstName : null), ('lastName' in criteria ? criteria.lastName : null)]
             );
             return res.rows;
-        } else if (type === 'ORGANIZATION' && criteria.legalName) {
+        } else if (type === 'ORGANIZATION' && ('legalName' in criteria ? criteria.legalName : null)) {
             const res = await client.query(
                 `SELECT p.*, o.legal_name 
                  FROM party p 
                  JOIN organization o ON p.id = o.party_id AND p.tenant_id = o.tenant_id
                  WHERE p.tenant_id = $1 AND p.deleted_at IS NULL AND o.legal_name = $2`,
-                [tenantId, criteria.legalName]
+                [tenantId, ('legalName' in criteria ? criteria.legalName : null)]
             );
             return res.rows;
         }

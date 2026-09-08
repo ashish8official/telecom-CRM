@@ -1,7 +1,8 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
 import { Customer } from '../../domain/customer/CustomerTypes';
 import { CustomerNotFoundError } from '../../domain/customer/CustomerErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class GetCustomerByParty {
     constructor(private customerRepo: ICustomerRepository) {}

@@ -1,4 +1,4 @@
-import { DomainError } from '../party/PartyErrors';
+import { DomainError } from '../common/errors/DomainError';
 
 export class CustomerAccountNotFoundError extends DomainError {
     constructor(id: string, tenantId: string) {

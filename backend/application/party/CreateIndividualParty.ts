@@ -1,26 +1,25 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { IPartyRepository } from '../../domain/party/PartyRepository';
-import { ITransactionManager } from './ITransactionManager';
-import { Individual, PartyType } from '../../domain/party/PartyTypes';
-import { ValidationError, InvalidPartyTypeError } from '../../domain/party/PartyErrors';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
+import { CreateIndividualInput, Individual, PartyType } from '../../domain/party/PartyTypes';
+import { InvalidPartyTypeError } from '../../domain/party/PartyErrors';
 
 export class CreateIndividualParty {
     constructor(
-        private repo: IPartyRepository,
-        private txManager: ITransactionManager
+        private readonly partyRepository: IPartyRepository,
+        private readonly transactionManager: ITransactionManager
     ) {}
 
-    async execute(tenantId: string, data: Partial<Individual>): Promise<Individual> {
+    async execute(tenantId: string, data: CreateIndividualInput): Promise<Individual> {
         if (!tenantId) throw new ValidationError("Tenant ID is required");
-        if (!data.firstName) throw new ValidationError("First name is required");
-        if (!data.lastName) throw new ValidationError("Last name is required");
-        if (data.partyType && data.partyType !== PartyType.INDIVIDUAL) {
-            throw new InvalidPartyTypeError(PartyType.INDIVIDUAL, data.partyType);
-        }
+        if (!data.firstName || data.firstName.trim().length === 0) throw new ValidationError("First name is required");
+        if (!data.lastName || data.lastName.trim().length === 0) throw new ValidationError("Last name is required");
+        
 
-        const tx = await this.txManager.beginTransaction();
+        const tx = await this.transactionManager.beginTransaction();
         try {
             // Duplicate detection hook (informational only for Phase 1)
-            const duplicates = await this.repo.findPotentialDuplicates(tenantId, 'INDIVIDUAL', {
+            const duplicates = await this.partyRepository.findPotentialDuplicates(tenantId, 'INDIVIDUAL', {
                 firstName: data.firstName,
                 lastName: data.lastName
             }, tx);
@@ -28,7 +27,7 @@ export class CreateIndividualParty {
                 console.warn(`[DuplicateHook] Potential duplicate Individual found for ${data.firstName} ${data.lastName}`);
             }
 
-            const individual = await this.repo.createIndividual(tenantId, data, tx);
+            const individual = await this.partyRepository.createIndividual(tenantId, data, tx);
             await tx.commit();
             return individual;
         } catch (err) {

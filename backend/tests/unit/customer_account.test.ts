@@ -1,3 +1,5 @@
+import { UpdateCustomerAccount } from '../../application/customer_account/UpdateCustomerAccount';
+import { GetCustomerAccount } from '../../application/customer_account/GetCustomerAccount';
 import { CreateMasterAccount } from '../../application/customer_account/CreateMasterAccount';
 import { CreateChildAccount } from '../../application/customer_account/CreateChildAccount';
 import { GetCustomerAccountHierarchy } from '../../application/customer_account/GetCustomerAccountHierarchy';
@@ -5,7 +7,7 @@ import { ChangeCustomerAccountStatus } from '../../application/customer_account/
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { ICustomerRepository } from '../../domain/customer/CustomerRepository';
 import { CustomerAccount, AccountLevel, AccountStatus } from '../../domain/customer_account/CustomerAccountTypes';
-import { ITransactionManager } from '../../application/party/ITransactionManager';
+import { ITransactionManager } from '../../domain/common/transaction/ITransactionManager';
 import { Customer, CustomerStatus } from '../../domain/customer/CustomerTypes';
 import { AccountHasActiveChildrenError, CrossCustomerAccountHierarchyError, InvalidAccountStateTransitionError, InvalidParentAccountError } from '../../domain/customer_account/CustomerAccountErrors';
 

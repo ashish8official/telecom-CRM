@@ -1,7 +1,8 @@
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { CustomerAccount, AccountStatus, AccountLevel } from '../../domain/customer_account/CustomerAccountTypes';
 import { CustomerAccountNotFoundError, InvalidAccountStateTransitionError, AccountHasActiveChildrenError } from '../../domain/customer_account/CustomerAccountErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class ChangeCustomerAccountStatus {
     constructor(private accountRepo: ICustomerAccountRepository) {}

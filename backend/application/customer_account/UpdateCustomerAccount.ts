@@ -1,8 +1,10 @@
+import { InvalidTemporalDatesError } from '../../domain/common/errors/InvalidTemporalDatesError';
+import { ValidationError } from '../../domain/common/errors/ValidationError';
 import { ICustomerAccountRepository } from '../../domain/customer_account/CustomerAccountRepository';
 import { CustomerAccount, UpdateCustomerAccountInput } from '../../domain/customer_account/CustomerAccountTypes';
 import { CustomerAccountNotFoundError } from '../../domain/customer_account/CustomerAccountErrors';
-import { InvalidTemporalDatesError } from '../../domain/customer/CustomerErrors';
-import { ValidationError } from '../../domain/party/PartyErrors';
+import { } from '../../domain/customer/CustomerErrors';
+import { } from '../../domain/party/PartyErrors';
 
 export class UpdateCustomerAccount {
     constructor(private accountRepo: ICustomerAccountRepository) {}
