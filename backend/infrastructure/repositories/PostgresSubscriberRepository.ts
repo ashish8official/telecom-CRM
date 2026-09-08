@@ -22,7 +22,6 @@ export class PostgresSubscriberRepository implements ISubscriberRepository {
             serviceMode: row.service_mode,
             status: row.status as SubscriberStatus,
             version: row.version,
-            idempotencyKey: row.idempotency_key,
             createdAt: row.created_at,
             createdBy: row.created_by,
             updatedAt: row.updated_at,
@@ -46,8 +45,8 @@ export class PostgresSubscriberRepository implements ISubscriberRepository {
             const res = await client.query(
                 `INSERT INTO subscriber (
                     tenant_id, subscriber_code, customer_account_id, service_category, service_mode, 
-                    location_level, location_code, location_external_id, idempotency_key, created_by
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    location_level, location_code, location_external_id, created_by
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
                 RETURNING *`,
                 [
                     tenantId, 
@@ -58,14 +57,13 @@ export class PostgresSubscriberRepository implements ISubscriberRepository {
                     data.geographic?.level || null,
                     data.geographic?.code || null,
                     data.geographic?.externalId || null,
-                    data.idempotencyKey || null,
                     data.createdBy || null
                 ]
             );
             return this.mapToSubscriber(res.rows[0]);
         } catch (e: any) {
-            if (e.code === '23505') { // Unique violation
-                throw new DuplicateSubscriberError(data.subscriberCode, tenantId);
+            if (e.code === '23505') { console.log('UNIQUE VIOLATION on:', e.constraint); } { // Unique violation
+                throw new DuplicateSubscriberError(data.subscriberCode || 'UNKNOWN', tenantId);
             }
             throw e;
         }
@@ -81,13 +79,6 @@ export class PostgresSubscriberRepository implements ISubscriberRepository {
     async getSubscriberByCode(tenantId: string, subscriberCode: string, tx?: ITransaction): Promise<Subscriber | null> {
         const client = this.getClient(tx);
         const res = await client.query(`SELECT * FROM subscriber WHERE tenant_id = $1 AND subscriber_code = $2`, [tenantId, subscriberCode]);
-        if (res.rowCount === 0) return null;
-        return this.mapToSubscriber(res.rows[0]);
-    }
-
-    async getSubscriberByIdempotencyKey(tenantId: string, idempotencyKey: string, tx?: ITransaction): Promise<Subscriber | null> {
-        const client = this.getClient(tx);
-        const res = await client.query(`SELECT * FROM subscriber WHERE tenant_id = $1 AND idempotency_key = $2`, [tenantId, idempotencyKey]);
         if (res.rowCount === 0) return null;
         return this.mapToSubscriber(res.rows[0]);
     }

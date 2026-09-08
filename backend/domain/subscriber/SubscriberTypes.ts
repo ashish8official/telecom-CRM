@@ -18,7 +18,6 @@ export interface Subscriber {
     serviceMode: string; // e.g. PREPAID, POSTPAID
     status: SubscriberStatus;
     geographic?: GeographicLocationReference;
-    idempotencyKey?: string;
     version: number;
     createdAt: Date;
     createdBy?: string;
@@ -39,12 +38,11 @@ export interface SubscriberStatusHistory {
 }
 
 export interface CreateSubscriberInput {
-    subscriberCode: string;
+    subscriberCode?: string; // Made optional so app layer can auto-generate it if not provided
     customerAccountId: string;
     serviceCategory: string;
     serviceMode: string;
     geographic?: GeographicLocationReference;
-    idempotencyKey?: string;
     createdBy?: string;
 }
 

@@ -4,6 +4,8 @@ import { PostgresCustomerAccountRepository } from '../../infrastructure/reposito
 import { PostgresCustomerRepository } from '../../infrastructure/repositories/PostgresCustomerRepository';
 import { PostgresTransactionManager } from '../../infrastructure/database/TransactionManager';
 import { CreateSubscriber } from '../../application/subscriber/CreateSubscriber';
+import { PostgresIdempotencyManager } from '../../infrastructure/idempotency/PostgresIdempotencyManager';
+import { IdempotencyKeyReusedWithDifferentRequestError } from '../../domain/common/idempotency/IdempotencyErrors';
 import { ChangeSubscriberStatus } from '../../application/subscriber/ChangeSubscriberStatus';
 import { ResolveSubscriberBillingAccount } from '../../application/subscriber/ResolveSubscriberBillingAccount';
 import { SubscriberStatus } from '../../domain/subscriber/SubscriberTypes';
@@ -19,6 +21,7 @@ describe('Subscriber Database Integration Tests', () => {
     let customerRepo: PostgresCustomerRepository;
     let txManager: PostgresTransactionManager;
     let createSubscriber: CreateSubscriber;
+    let idempotencyManager: PostgresIdempotencyManager;
     let changeStatus: ChangeSubscriberStatus;
     let resolveBilling: ResolveSubscriberBillingAccount;
 
@@ -34,10 +37,14 @@ describe('Subscriber Database Integration Tests', () => {
         customerRepo = new PostgresCustomerRepository(pool);
         txManager = new PostgresTransactionManager(pool);
         
-        createSubscriber = new CreateSubscriber(subscriberRepo, accountRepo, txManager);
+        idempotencyManager = new PostgresIdempotencyManager(pool);
+        createSubscriber = new CreateSubscriber(subscriberRepo, accountRepo, txManager, idempotencyManager);
         changeStatus = new ChangeSubscriberStatus(subscriberRepo, txManager);
         resolveBilling = new ResolveSubscriberBillingAccount(subscriberRepo, accountRepo);
 
+        await pool.query('DELETE FROM subscriber_status_history WHERE tenant_id = $1', [tenantA]);
+        await pool.query('DELETE FROM subscriber WHERE tenant_id = $1', [tenantA]);
+        await pool.query('DELETE FROM idempotency_record WHERE tenant_id = $1', [tenantA]);
         await pool.query(`INSERT INTO tenant (id, tenant_code, name) VALUES ($1, 'SUB_A', 'Sub Tenant A') ON CONFLICT DO NOTHING`, [tenantA]);
 
         // Create Party & Customer
@@ -62,7 +69,6 @@ describe('Subscriber Database Integration Tests', () => {
 
     test('Scenario A: One Master Account -> One Subscriber', async () => {
         const sub = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-A-1',
             customerAccountId: masterA_Id,
             serviceCategory: 'GSM',
             serviceMode: 'PREPAID'
@@ -72,19 +78,17 @@ describe('Subscriber Database Integration Tests', () => {
         expect(sub.status).toBe(SubscriberStatus.PENDING);
         
         const billingAcc = await resolveBilling.execute(tenantA, sub.id);
-        expect(billingAcc.id).toBe(masterA_Id); // Ultimate Billing Account = Same Master Account
+        expect(billingAcc.id).toBe(masterA_Id);
     });
 
     test('Scenario B: One Master Account -> Multiple Subscribers', async () => {
         const sub1 = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-B-1',
             customerAccountId: masterB_Id,
             serviceCategory: 'GSM',
             serviceMode: 'PREPAID'
         });
 
         const sub2 = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-B-2',
             customerAccountId: masterB_Id,
             serviceCategory: 'GSM',
             serviceMode: 'POSTPAID'
@@ -99,39 +103,40 @@ describe('Subscriber Database Integration Tests', () => {
 
     test('Scenario C: Hierarchical Account (Child Account -> Subscriber)', async () => {
         const sub = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-C-1',
             customerAccountId: childB_Id,
             serviceCategory: 'M2M',
             serviceMode: 'POSTPAID'
         });
 
-        // Direct account is child
         expect(sub.customerAccountId).toBe(childB_Id);
 
-        // Ultimate billing account is master
         const billingAcc = await resolveBilling.execute(tenantA, sub.id);
         expect(billingAcc.id).toBe(masterB_Id);
     });
 
     test('Idempotency: Same key returns existing subscriber safely', async () => {
         const sub1 = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-IDEM-1',
             customerAccountId: masterA_Id,
             serviceCategory: 'FWA',
-            serviceMode: 'POSTPAID',
-            idempotencyKey: 'idem-key-123'
-        });
+            serviceMode: 'POSTPAID'
+        }, 'idem-key-123');
 
         const sub2 = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-IDEM-1-IGNORE', // Will be ignored because idempotency key matches
-            customerAccountId: masterB_Id,
-            serviceCategory: 'GSM',
-            serviceMode: 'PREPAID',
-            idempotencyKey: 'idem-key-123'
-        });
+            customerAccountId: masterA_Id,
+            serviceCategory: 'FWA',
+            serviceMode: 'POSTPAID'
+        }, 'idem-key-123');
 
         expect(sub1.id).toBe(sub2.id);
-        expect(sub1.subscriberCode).toBe('SUB-IDEM-1');
+        expect(sub1.subscriberCode).toBeDefined();
+    });
+
+    test('Idempotency: Different request payload throws error', async () => {
+        await expect(createSubscriber.execute(tenantA, {
+            customerAccountId: masterA_Id,
+            serviceCategory: 'GSM', 
+            serviceMode: 'PREPAID'
+        }, 'idem-key-123')).rejects.toThrow(IdempotencyKeyReusedWithDifferentRequestError);
     });
 
     test('Duplicate Subscriber Code rejects', async () => {
@@ -152,13 +157,11 @@ describe('Subscriber Database Integration Tests', () => {
 
     test('Lifecycle Transitions and Atomic History', async () => {
         const sub = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-LIFE',
             customerAccountId: masterA_Id,
             serviceCategory: 'GSM',
             serviceMode: 'PREPAID'
         });
 
-        // Valid transition PENDING -> ACTIVE
         const activeSub = await changeStatus.execute(tenantA, sub.id, {
             newStatus: SubscriberStatus.ACTIVE,
             reasonCode: 'ACTIVATION_SUCCESS',
@@ -168,14 +171,12 @@ describe('Subscriber Database Integration Tests', () => {
         expect(activeSub.status).toBe(SubscriberStatus.ACTIVE);
         expect(activeSub.version).toBe(2);
 
-        // Verify History
         const historyCheck = await pool.query(`SELECT * FROM subscriber_status_history WHERE subscriber_id = $1 ORDER BY changed_at DESC LIMIT 1`, [sub.id]);
         expect(historyCheck.rows[0].new_status).toBe('ACTIVE');
         expect(historyCheck.rows[0].previous_status).toBe('PENDING');
 
-        // Invalid transition DISCONNECTED -> ACTIVE (Since currently ACTIVE)
         await expect(changeStatus.execute(tenantA, sub.id, {
-            newStatus: SubscriberStatus.TERMINATED, // Cannot go ACTIVE -> TERMINATED directly
+            newStatus: SubscriberStatus.TERMINATED,
             reasonCode: 'WRONG',
             version: activeSub.version
         })).rejects.toThrow(InvalidSubscriberStatusTransitionError);
@@ -183,20 +184,17 @@ describe('Subscriber Database Integration Tests', () => {
 
     test('Concurrency (Optimistic Locking) Prevention', async () => {
         const sub = await createSubscriber.execute(tenantA, {
-            subscriberCode: 'SUB-CONC',
             customerAccountId: masterA_Id,
             serviceCategory: 'GSM',
             serviceMode: 'PREPAID'
         });
 
-        // First update works (version 1 -> 2)
         await changeStatus.execute(tenantA, sub.id, {
             newStatus: SubscriberStatus.ACTIVE,
             reasonCode: 'OK',
             version: sub.version
         });
 
-        // Second update tries to use version 1 -> fails
         await expect(changeStatus.execute(tenantA, sub.id, {
             newStatus: SubscriberStatus.DISCONNECTED,
             reasonCode: 'CONFLICT',
