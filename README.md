@@ -1,105 +1,115 @@
-# Telecom CRM Engine
+<div align="center">
+  
+# 🌐 Open Telecom CRM Engine
 
-A modern, multi-tenant, domain-driven Customer Relationship Management (CRM) backend explicitly designed for the telecommunications industry. 
+**An enterprise-grade, multi-tenant, domain-driven CRM backend purpose-built for modern telecommunications and BSS architectures.**
 
-This repository serves as the core source of truth for **Party**, **Customer**, **Account Hierarchy**, and **Subscriber** relationships. It is strictly architected as a standalone, bounded context—it focuses entirely on the commercial and structural relationships of customers and explicitly defers commercial product configuration (Product Catalogue), order orchestration (OM), and technical network asset management (Inventory/Provisioning) to their respective domains.
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-316192?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Jest Tests](https://img.shields.io/badge/Tested_with-Jest-C21325?style=for-the-badge&logo=jest&logoColor=white)](https://jestjs.io/)
+[![Architecture](https://img.shields.io/badge/Architecture-DDD-success?style=for-the-badge)](#)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 
----
-
-## 🏗 Core Architectural Principles
-
-- **Domain-Driven Design (DDD):** Organized into strict `domain`, `application`, and `infrastructure` layers. The domain model remains pure and completely unaware of PostgreSQL, Express, or TM Forum API mapping schemas.
-- **Strict Multi-Tenancy:** True horizontal multi-tenancy. Every table uses a composite primary key (`tenant_id`, `id`). All repositories enforce tenant boundaries at the query level.
-- **Atomic Operations:** Critical lifecycle events (e.g., Subscriber status changes) are bundled in strict ACID transactions containing both the state mutation and immutable history log records.
-- **Concurrency & Idempotency:** Optimistic locking (`version` column) handles concurrent write collisions safely. Upstream retries are protected via `idempotency_key` constraints.
-- **Anti-Corruption Layer (ACL):** External market configurations (such as those from a Product Catalogue) are decoupled from the CRM through stable geographic identifiers rather than hardcoded shared database dependencies.
+*Built to decouple telecom commercial relationships from legacy monolithic inventory and billing traps.*
 
 ---
 
-## 🎯 Implemented Domains (Task 01 - Task 09)
+</div>
 
-The CRM currently supports the following core domains:
+## 💡 The Problem it Solves
+Most telecom Business Support Systems (BSS) suffer from massive architectural coupling—where a single "Customer" table is tangled with physical SIM cards, network resources, and hardcoded billing logic. 
 
-1. **Party Domain** (`Individual`, `Organization`)
-   - Distinguishes the legal or physical entity from the commercial relationship.
-2. **Customer Domain**
-   - Represents the commercial relationship. Ensures active uniqueness rules (e.g., a Party can only have one active Customer profile per tenant).
-3. **Customer Account Domain**
-   - Supports robust enterprise account hierarchies.
-   - Enforces `MASTER` vs. `CHILD` account logic (e.g., billing responsibility strictly belongs to the Master account, preventing cross-tenant or self-parenting hierarchy loops).
-4. **Geographic & Market Context Contract**
-   - The CRM holds "Customer Facts" (e.g., `GeographicLocationReference`), explicitly pushing "Commercial Rules" out to the Product Catalogue to evaluate eligibility without duplicating logic.
-5. **Telecom Subscriber Domain**
-   - The logical representation of a service relationship (`GSM PREPAID`, `FWA POSTPAID`).
-   - Maintains an explicit lifecycle (`PENDING` ➔ `ACTIVE` ➔ `SUSPENDED` / `BARRED` ➔ `DISCONNECTED` ➔ `TERMINATED`).
-   - Automatically resolves ultimate billing accounts across infinite child-account hierarchies.
-   - *Note: Subscribers are explicitly NOT physical resources. (MSISDN, IMSI, SIM concepts belong in an Inventory Domain, which will attach to the Subscriber later).*
+**Open Telecom CRM** solves this by enforcing strict **Domain-Driven Design (DDD)**. It is a highly scalable, headless engine that manages the commercial relationship structure (Parties, Customers, Account Hierarchies, and Subscribers) completely independent of network inventory, product catalogues, and rating engines.
 
 ---
 
-## 🚀 Getting Started
+## ✨ Enterprise Features
 
-### Prerequisites
-- **Node.js** (v18+)
-- **PostgreSQL** (v14+)
-- **TypeScript** 
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/ashish8official/telecom-CRM.git
-   cd telecom-CRM
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Configure Environment:**
-   Set up your connection variables in a `.env` file at the root.
-   ```env
-   DATABASE_URL=postgres://postgres:admin@localhost:5433/crm_db
-   ```
-
-4. **Run Database Migrations:**
-   Ensure your database is running and execute the migration script to apply all schema tables, constraints, and indexes.
-   ```bash
-   npm run db:migrate
-   ```
-
-### Testing
-
-The system separates unit logic from infrastructure validations. 
-- **Unit Tests:** `npm run test:unit`
-- **Integration Tests:** `npm run test:integration` (Requires active local PostgreSQL database)
-- **All Tests:** `npm run test:all`
+*   🏢 **True Horizontal Multi-Tenancy:** Strict row-level composite key isolation (`tenant_id`, `id`) baked into every table and repository. No cross-tenant data leaks.
+*   🏗️ **Pure Domain-Driven Design (DDD):** Completely isolated `domain`, `application`, and `infrastructure` layers. The core business rules are unaware of the database or APIs.
+*   🔒 **Safe Concurrency:** Optimistic locking (`version` columns) on all critical lifecycle entities prevents lost updates during concurrent provisioning calls.
+*   🛡️ **Idempotent by Default:** Built-in `idempotency_key` handling protects against retry-storms from upstream Order Management (OM) systems.
+*   📦 **Infinite Account Hierarchies:** Native support for recursive Master/Child enterprise account structures with automated Ultimate Billing Account resolution.
+*   📜 **Atomic Audit Trails:** Every lifecycle state change (e.g., Subscriber `ACTIVE` ➔ `SUSPENDED`) executes within strict ACID transactions alongside its historical audit record.
 
 ---
 
-## 📂 Project Structure
+## 🗺️ Domain Architecture
 
-```text
-telecom-CRM/
-├── backend/
-│   ├── application/     # Application Use Cases (Commands/Queries)
-│   ├── domain/          # Pure Domain Entities, Types, and Errors
-│   ├── infrastructure/  # PostgreSQL Repositories, Database Transactions
-│   └── tests/           # Unit & Integration Test Suites
-├── database/
-│   ├── migrations/      # Sequential .sql schema up-migrations
-│   └── rollbacks/       # Sequential .sql schema down-migrations
-├── docs/                # Architectural Decision Records & Task Definitions
-└── package.json
+This CRM maintains strict boundaries. A **Subscriber** is a *service relationship*, NOT a physical SIM card.
+
+```mermaid
+graph TD
+    classDef party fill:#f9f871,stroke:#333,stroke-width:2px;
+    classDef customer fill:#ffc75f,stroke:#333,stroke-width:2px;
+    classDef account fill:#ff9671,stroke:#333,stroke-width:2px;
+    classDef subscriber fill:#ff6f91,stroke:#333,stroke-width:2px;
+
+    P[👤 Party <br/> Legal/Physical Entity]:::party -->|Establishes| C[🤝 Customer <br/> Commercial Relationship]:::customer
+    
+    C -->|Owns| MA[🏢 Master Account <br/> Billing Responsible]:::account
+    MA -.->|Can Have| CA[🏢 Child Account <br/> Department/Branch]:::account
+    
+    MA ==>|Consumes| S1[📱 Subscriber A <br/> GSM PREPAID]:::subscriber
+    CA ==>|Consumes| S2[📡 Subscriber B <br/> FWA POSTPAID]:::subscriber
+
+    style P color:#000
+    style C color:#000
+    style MA color:#000
+    style CA color:#000
+    style S1 color:#000
+    style S2 color:#000
 ```
 
 ---
 
-## 🛤 Future Integrations (Explicit Non-Goals Currently)
-To ensure system boundaries remain clean, the following capabilities are explicitly deferred for later integration architectures:
-- **Telecom Resource Inventory:** Physical SIMs, ICCIDs, IMSIs, and MSISDN mapping.
-- **Product Offerings & Subscriptions:** Attaching a Subscriber to a Product Catalogue Offering.
-- **Network Provisioning:** HSS/HLR/PCRF interactions.
-- **Billing & Rating Engine:** Invoice generation, tax calculation, and event rating.
-- **External Interfaces:** Native TM Forum Open API REST Adapters (TMF 629, TMF 632, etc.) will be wrapped in an adapter layer over these core use cases.
+## 🚀 Quick Start
+
+### 1. Prerequisites
+*   **Node.js** (v18+)
+*   **PostgreSQL** (v14+)
+
+### 2. Installation
+Clone the repo and install dependencies:
+```bash
+git clone https://github.com/ashish8official/telecom-CRM.git
+cd telecom-CRM
+npm install
+```
+
+### 3. Environment Setup
+Create a `.env` file in the root directory:
+```env
+DATABASE_URL=postgres://postgres:admin@localhost:5433/crm_db
+```
+
+### 4. Database Migrations
+Initialize the database schemas, indexes, and triggers:
+```bash
+npm run db:migrate
+```
+
+### 5. Run the Test Suites
+The project guarantees stability through extensive automated testing.
+```bash
+npm run test:unit         # Fast, isolated domain tests
+npm run test:integration  # Full DB transaction & constraint tests
+npm run test:all          # Run everything
+```
+
+---
+
+## 🚧 Future Roadmap (What's Next)
+To maintain pure boundaries, the following are intentionally deferred to future microservices or adapters:
+- [ ] **TM Forum Open APIs:** Native TMF629 (Customer Management) & TMF632 (Party Management) REST adapters wrapping our application layer.
+- [ ] **Telecom Resource Inventory:** Physical SIMs, ICCIDs, IMSIs, and MSISDN mapping via a decoupled Inventory domain.
+- [ ] **Product Subscriptions:** Integration with the external Product Catalogue rules engine.
+
+---
+
+## 🤝 Contributing
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/ashish8official/telecom-CRM/issues). If you like the vision of a decoupled telecom architecture, **please give this repository a ⭐️ to show your support!**
+
+<div align="center">
+  <i>Built with ❤️ for modern Telecom Engineering</i>
+</div>
