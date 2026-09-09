@@ -111,5 +111,5 @@ To maintain pure boundaries, the following are intentionally deferred to future 
 Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](https://github.com/ashish8official/telecom-CRM/issues). If you like the vision of a decoupled telecom architecture, **please give this repository a ⭐️ to show your support!**
 
 <div align="center">
-  <i>Built with ❤️ for modern Telecom Engineering</i>
+  <i>Built with ❤️ for modern Telecom BSS and OSS Engineering</i>
 </div>
