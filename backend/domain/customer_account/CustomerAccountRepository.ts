@@ -1,5 +1,5 @@
 import { ITransaction } from '../common/transaction/ITransaction';
-import { CustomerAccount, AccountStatus, UpdateCustomerAccountInput, AccountLevel } from './CustomerAccountTypes';
+import { CustomerAccount, AccountStatus, UpdateCustomerAccountInput, AccountLevel, CustomerAccountStatusHistory } from './CustomerAccountTypes';
 
 export interface ICustomerAccountRepository {
     createAccount(
@@ -24,5 +24,14 @@ export interface ICustomerAccountRepository {
     
     updateAccount(tenantId: string, accountId: string, data: UpdateCustomerAccountInput, tx?: ITransaction): Promise<CustomerAccount>;
     
-    updateAccountStatus(tenantId: string, accountId: string, status: AccountStatus, updatedBy?: string, tx?: ITransaction): Promise<CustomerAccount>;
+    updateAccountStatus(
+        tenantId: string, 
+        accountId: string, 
+        status: AccountStatus, 
+        version: number,
+        updatedBy?: string, 
+        tx?: ITransaction
+    ): Promise<CustomerAccount>;
+    
+    insertStatusHistory(tenantId: string, data: Omit<CustomerAccountStatusHistory, 'id' | 'tenantId' | 'changedAt'>, tx?: ITransaction): Promise<CustomerAccountStatusHistory>;
 }

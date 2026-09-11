@@ -14,9 +14,30 @@ export interface Customer {
     customerSegment?: string;
     effectiveFrom: Date;
     effectiveTo?: Date;
+    version: number;
     createdAt: Date;
     createdBy?: string;
     updatedAt: Date;
+    updatedBy?: string;
+}
+
+export interface CustomerStatusHistory {
+    id: string;
+    tenantId: string;
+    customerId: string;
+    previousStatus?: CustomerStatus;
+    newStatus: CustomerStatus;
+    reasonCode: string;
+    reasonDescription?: string;
+    changedAt: Date;
+    changedBy?: string;
+}
+
+export interface ChangeCustomerStatusInput {
+    newStatus: CustomerStatus;
+    reasonCode: string;
+    reasonDescription?: string;
+    version: number;
     updatedBy?: string;
 }
 

@@ -21,6 +21,7 @@ export class PostgresCustomerAccountRepository implements ICustomerAccountReposi
             billingResponsibleFlag: row.billing_responsible_flag,
             effectiveFrom: row.effective_from,
             effectiveTo: row.effective_to,
+            version: row.version,
             createdAt: row.created_at,
             createdBy: row.created_by,
             updatedAt: row.updated_at,
@@ -68,7 +69,7 @@ export class PostgresCustomerAccountRepository implements ICustomerAccountReposi
             `SELECT * FROM customer_account WHERE tenant_id = $1 AND customer_id = $2 ORDER BY created_at ASC`,
             [tenantId, customerId]
         );
-        return res.rows.map(this.mapToAccount);
+        return res.rows.map(row => this.mapToAccount(row));
     }
 
     async hasActiveChildren(tenantId: string, accountId: string, tx?: ITransaction): Promise<boolean> {
@@ -87,19 +88,53 @@ export class PostgresCustomerAccountRepository implements ICustomerAccountReposi
         const res = await client.query(
             `UPDATE customer_account 
              SET effective_to = COALESCE($1, effective_to),
-                 updated_by = COALESCE($2, updated_by)
+                 updated_by = COALESCE($2, updated_by),
+                 version = version + 1
              WHERE tenant_id = $3 AND id = $4 RETURNING *`,
             [data.effectiveTo, data.updatedBy, tenantId, accountId]
         );
         return this.mapToAccount(res.rows[0]);
     }
 
-    async updateAccountStatus(tenantId: string, accountId: string, status: AccountStatus, updatedBy?: string, tx?: ITransaction): Promise<CustomerAccount> {
+    async updateAccountStatus(
+        tenantId: string, 
+        accountId: string, 
+        status: AccountStatus, 
+        version: number,
+        updatedBy?: string, 
+        tx?: ITransaction
+    ): Promise<CustomerAccount> {
         const client = this.getClient(tx);
         const res = await client.query(
-            `UPDATE customer_account SET status = $1, updated_by = $2 WHERE tenant_id = $3 AND id = $4 RETURNING *`,
-            [status, updatedBy, tenantId, accountId]
+            `UPDATE customer_account SET status = $1, updated_by = $2, version = version + 1 
+             WHERE tenant_id = $3 AND id = $4 AND version = $5 RETURNING *`,
+            [status, updatedBy, tenantId, accountId, version]
         );
+        if (res.rowCount === 0) {
+            throw new Error(`Account status update failed: Concurrent modification or not found. (version: ${version})`);
+        }
         return this.mapToAccount(res.rows[0]);
+    }
+
+    async insertStatusHistory(tenantId: string, data: any, tx?: ITransaction): Promise<any> {
+        const client = this.getClient(tx);
+        const res = await client.query(
+            `INSERT INTO customer_account_status_history (
+                tenant_id, customer_account_id, previous_status, new_status, reason_code, reason_description, changed_by
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+            [tenantId, data.customerAccountId, data.previousStatus || null, data.newStatus, data.reasonCode, data.reasonDescription || null, data.changedBy || null]
+        );
+        const row = res.rows[0];
+        return {
+            id: row.id,
+            tenantId: row.tenant_id,
+            customerAccountId: row.customer_account_id,
+            previousStatus: row.previous_status,
+            newStatus: row.new_status,
+            reasonCode: row.reason_code,
+            reasonDescription: row.reason_description,
+            changedAt: row.changed_at,
+            changedBy: row.changed_by
+        };
     }
 }

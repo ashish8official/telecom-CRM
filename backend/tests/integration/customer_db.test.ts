@@ -35,7 +35,7 @@ describe('Customer Database Integration Tests', () => {
         
         createCustomer = new CreateCustomer(customerRepo, partyRepo, txManager);
         getCustomer = new GetCustomer(customerRepo);
-        changeStatus = new ChangeCustomerStatus(customerRepo);
+        changeStatus = new ChangeCustomerStatus(customerRepo, txManager);
 
         await pool.query(`INSERT INTO tenant (id, tenant_code, name) VALUES ($1, 'CUST_A', 'Cust Tenant A') ON CONFLICT DO NOTHING`, [tenantA]);
         await pool.query(`INSERT INTO tenant (id, tenant_code, name) VALUES ($1, 'CUST_B', 'Cust Tenant B') ON CONFLICT DO NOTHING`, [tenantB]);
@@ -95,7 +95,11 @@ describe('Customer Database Integration Tests', () => {
         const cust = await createCustomer.execute(tenantA, { partyId: pTerm.rows[0].id });
         
         // Terminate
-        await changeStatus.execute(tenantA, cust.id, CustomerStatus.TERMINATED);
+        await changeStatus.execute(tenantA, cust.id, { 
+            newStatus: CustomerStatus.TERMINATED, 
+            reasonCode: 'TEST_TERMINATION', 
+            version: cust.version 
+        });
         
         // Verify Party remains
         const checkP = await pool.query(`SELECT id FROM party WHERE id = $1`, [pTerm.rows[0].id]);

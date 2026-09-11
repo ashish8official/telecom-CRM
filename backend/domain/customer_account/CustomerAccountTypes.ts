@@ -19,9 +19,30 @@ export interface CustomerAccount {
     billingResponsibleFlag: boolean;
     effectiveFrom: Date;
     effectiveTo?: Date | null;
+    version: number;
     createdAt: Date;
     createdBy?: string;
     updatedAt: Date;
+    updatedBy?: string;
+}
+
+export interface CustomerAccountStatusHistory {
+    id: string;
+    tenantId: string;
+    customerAccountId: string;
+    previousStatus?: AccountStatus;
+    newStatus: AccountStatus;
+    reasonCode: string;
+    reasonDescription?: string;
+    changedAt: Date;
+    changedBy?: string;
+}
+
+export interface ChangeCustomerAccountStatusInput {
+    newStatus: AccountStatus;
+    reasonCode: string;
+    reasonDescription?: string;
+    version: number;
     updatedBy?: string;
 }
 

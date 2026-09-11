@@ -28,7 +28,7 @@ class MockTxManager implements ITransactionManager {
 class MockCustomerRepo implements ICustomerRepository {
     customers: Customer[] = [];
     async createCustomer(tenantId: string, data: any): Promise<Customer> {
-        const c = { id: 'c1', tenantId, partyId: data.partyId, status: data.status || CustomerStatus.ACTIVE, effectiveFrom: data.effectiveFrom || new Date(), ...data } as Customer;
+        const c = { id: 'c1', tenantId, partyId: data.partyId, status: data.status || CustomerStatus.ACTIVE, effectiveFrom: data.effectiveFrom || new Date(), version: 1, ...data } as Customer;
         this.customers.push(c);
         return c;
     }
@@ -40,13 +40,16 @@ class MockCustomerRepo implements ICustomerRepository {
     }
     async updateCustomer(tenantId: string, id: string, data: any) {
         const c = await this.getCustomerById(tenantId, id);
-        if (c) Object.assign(c, data);
+        if (c) { Object.assign(c, data); c.version++; }
         return c as Customer;
     }
-    async updateCustomerStatus(tenantId: string, id: string, status: CustomerStatus) {
+    async updateCustomerStatus(tenantId: string, id: string, status: CustomerStatus, version: number) {
         const c = await this.getCustomerById(tenantId, id);
-        if (c) c.status = status;
+        if (c) { c.status = status; c.version++; }
         return c as Customer;
+    }
+    async insertStatusHistory(tenantId: string, data: any) {
+        return { id: 'sh1', tenantId, ...data };
     }
     async findExistingActiveCustomer(tenantId: string, partyId: string) {
         return this.customers.find(c => c.tenantId === tenantId && c.partyId === partyId && (c.status === CustomerStatus.ACTIVE || c.status === CustomerStatus.SUSPENDED)) || null;
@@ -81,7 +84,7 @@ describe('Customer Application Use Cases', () => {
         createCustomer = new CreateCustomer(customerRepo, partyRepo as any, txManager);
         getCustomer = new GetCustomer(customerRepo);
         updateCustomer = new UpdateCustomer(customerRepo);
-        changeStatus = new ChangeCustomerStatus(customerRepo);
+        changeStatus = new ChangeCustomerStatus(customerRepo, txManager);
     });
 
     test('CreateCustomer - Success', async () => {
@@ -120,16 +123,16 @@ describe('Customer Application Use Cases', () => {
     });
 
     test('ChangeStatus - Valid Transition', async () => {
-        await createCustomer.execute('t1', { partyId: 'p1' });
-        const c = await changeStatus.execute('t1', 'c1', CustomerStatus.SUSPENDED);
+        const cust = await createCustomer.execute('t1', { partyId: 'p1' });
+        const c = await changeStatus.execute('t1', 'c1', { newStatus: CustomerStatus.SUSPENDED, reasonCode: 'TEST', version: cust.version });
         expect(c.status).toBe(CustomerStatus.SUSPENDED);
     });
 
     test('ChangeStatus - Invalid Transition (TERMINATED is terminal)', async () => {
-        await createCustomer.execute('t1', { partyId: 'p1' });
-        await changeStatus.execute('t1', 'c1', CustomerStatus.TERMINATED);
+        const cust = await createCustomer.execute('t1', { partyId: 'p1' });
+        const c1 = await changeStatus.execute('t1', 'c1', { newStatus: CustomerStatus.TERMINATED, reasonCode: 'TEST', version: cust.version });
         
-        await expect(changeStatus.execute('t1', 'c1', CustomerStatus.ACTIVE)).rejects.toThrow(InvalidCustomerStateTransitionError);
+        await expect(changeStatus.execute('t1', 'c1', { newStatus: CustomerStatus.ACTIVE, reasonCode: 'TEST', version: c1.version })).rejects.toThrow(InvalidCustomerStateTransitionError);
     });
 
     test('UpdateCustomer - Immutable Fields (Simulated via DTO)', async () => {
