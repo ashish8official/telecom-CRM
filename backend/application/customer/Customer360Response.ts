@@ -14,6 +14,7 @@ export interface Customer360Customer {
     customerCategory?: string;
     customerSegment?: string;
     partyId: string;
+    version: number;
 }
 
 export interface Customer360Subscriber {

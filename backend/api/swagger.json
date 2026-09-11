@@ -1,0 +1,329 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Telecom CRM API",
+    "version": "1.0.0",
+    "description": "Enterprise API for Telecom CRM domain operations."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3000",
+      "description": "Local development server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "TenantHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-tenant-id",
+        "description": "UUID of the tenant context"
+      }
+    },
+    "headers": {
+      "IdempotencyKey": {
+        "description": "Unique key to ensure idempotent processing of state-changing operations",
+        "schema": {
+          "type": "string"
+        }
+      }
+    },
+    "schemas": {
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" },
+              "details": { "type": "object" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    { "TenantHeader": [] }
+  ],
+  "paths": {
+    "/customers": {
+      "post": {
+        "summary": "Create a Customer",
+        "tags": ["Customer"],
+        "parameters": [
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "partyId": { "type": "string", "format": "uuid" },
+                  "effectiveFrom": { "type": "string", "format": "date-time" },
+                  "effectiveTo": { "type": "string", "format": "date-time" }
+                },
+                "required": ["partyId"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Customer created" },
+          "400": { "$ref": "#/components/schemas/ErrorResponse" },
+          "409": { "$ref": "#/components/schemas/ErrorResponse" }
+        }
+      }
+    },
+    "/customers/{id}": {
+      "get": {
+        "summary": "Get Customer by ID",
+        "tags": ["Customer"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Customer found" },
+          "404": { "$ref": "#/components/schemas/ErrorResponse" }
+        }
+      },
+      "patch": {
+        "summary": "Update Customer",
+        "tags": ["Customer"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "effectiveTo": { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Customer updated" },
+          "404": { "$ref": "#/components/schemas/ErrorResponse" }
+        }
+      }
+    },
+    "/customers/{id}/status": {
+      "post": {
+        "summary": "Change Customer Status",
+        "tags": ["Lifecycle"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "TERMINATED"] },
+                  "reasonCode": { "type": "string" },
+                  "reasonDescription": { "type": "string" },
+                  "version": { "type": "integer" }
+                },
+                "required": ["newStatus", "reasonCode", "version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Status updated" },
+          "400": { "$ref": "#/components/schemas/ErrorResponse" },
+          "409": { "$ref": "#/components/schemas/ErrorResponse" }
+        }
+      }
+    },
+    "/customers/{id}/360": {
+      "get": {
+        "summary": "Get Customer 360 View",
+        "tags": ["Customer"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Customer 360 View" }
+        }
+      }
+    },
+    "/accounts": {
+      "post": {
+        "summary": "Create an Account (Master or Child)",
+        "tags": ["Account"],
+        "parameters": [
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customerId": { "type": "string", "format": "uuid" },
+                  "accountType": { "type": "string", "enum": ["MASTER", "CHILD"] },
+                  "parentAccountId": { "type": "string", "format": "uuid" },
+                  "effectiveFrom": { "type": "string", "format": "date-time" }
+                },
+                "required": ["customerId", "accountType"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Account created" }
+        }
+      }
+    },
+    "/accounts/{id}": {
+      "get": {
+        "summary": "Get Account by ID",
+        "tags": ["Account"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Account found" }
+        }
+      },
+      "patch": {
+        "summary": "Update Account",
+        "tags": ["Account"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "effectiveTo": { "type": "string", "format": "date-time" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Account updated" }
+        }
+      }
+    },
+    "/accounts/{id}/status": {
+      "post": {
+        "summary": "Change Account Status",
+        "tags": ["Lifecycle"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "CLOSED"] },
+                  "reasonCode": { "type": "string" },
+                  "reasonDescription": { "type": "string" },
+                  "version": { "type": "integer" }
+                },
+                "required": ["newStatus", "reasonCode", "version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Status updated" }
+        }
+      }
+    },
+    "/subscribers": {
+      "post": {
+        "summary": "Create a Subscriber",
+        "tags": ["Subscriber"],
+        "parameters": [
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "customerAccountId": { "type": "string", "format": "uuid" },
+                  "serviceCategory": { "type": "string", "enum": ["MOBILE", "BROADBAND", "TV", "LANDLINE", "M2M"] },
+                  "serviceMode": { "type": "string", "enum": ["PREPAID", "POSTPAID"] },
+                  "subscriberCode": { "type": "string" },
+                  "effectiveFrom": { "type": "string", "format": "date-time" }
+                },
+                "required": ["customerAccountId", "serviceCategory", "serviceMode"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": { "description": "Subscriber created" }
+        }
+      }
+    },
+    "/subscribers/{id}": {
+      "get": {
+        "summary": "Get Subscriber by ID",
+        "tags": ["Subscriber"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": { "description": "Subscriber found" }
+        }
+      }
+    },
+    "/subscribers/{id}/status": {
+      "post": {
+        "summary": "Change Subscriber Status",
+        "tags": ["Lifecycle"],
+        "parameters": [
+          { "in": "path", "name": "id", "required": true, "schema": { "type": "string", "format": "uuid" } },
+          { "$ref": "#/components/headers/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "newStatus": { "type": "string", "enum": ["ACTIVE", "INACTIVE", "SUSPENDED", "TERMINATED"] },
+                  "reasonCode": { "type": "string" },
+                  "reasonDescription": { "type": "string" },
+                  "version": { "type": "integer" }
+                },
+                "required": ["newStatus", "reasonCode", "version"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Status updated" }
+        }
+      }
+    }
+  }
+}

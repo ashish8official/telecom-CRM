@@ -127,7 +127,8 @@ export class GetCustomer360 {
                     status: customer.status,
                     customerCategory: customer.customerCategory,
                     customerSegment: customer.customerSegment,
-                    partyId: customer.partyId
+                    partyId: customer.partyId,
+                    version: customer.version
                 }
             },
             accounts: {

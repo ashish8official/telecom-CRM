@@ -16,15 +16,15 @@ export class InternalCatalogueAdapter implements CataloguePort {
     private capabilities: CatalogueCapabilities = {
         supportsBasicOfferingDiscovery: true,
         supportsOfferingDetails: true,
-        supportsPriceLookup: true, // Internal evaluates price overrides
-        supportsContextualEligibility: true, // Internal evaluates market mapping and restrictions
+        supportsPriceLookup: true,
+        supportsContextualEligibility: false, // Our catalogue doesn't have a dedicated eligibility endpoint yet
         supportsBundleResolution: true
     };
 
     constructor(
         private baseUrl: string, 
         private circuitBreaker: CircuitBreaker,
-        private httpClient: any
+        private catalogueTenantId: string = '17000000-0000-4000-a000-000000000000'
     ) {}
 
     getCapabilities(): CatalogueCapabilities {
@@ -33,17 +33,43 @@ export class InternalCatalogueAdapter implements CataloguePort {
 
     async discoverOfferings(context: CustomerDiscoveryContext): Promise<CatalogueDiscoveryResult> {
         try {
-            const rawResponse = await this.circuitBreaker.execute(() => 
-                withBoundedRetry(() => this.fetchInternalOfferings(context))
+            const rawOfferings = await this.circuitBreaker.execute(() => 
+                withBoundedRetry(() => this.fetchOfferings())
             );
 
-            const offerings = this.normalizeResponse(rawResponse);
+            const offerings = this.normalizeResponse(rawOfferings);
+
+            // Attempt to fetch prices for each offering
+            let priceStatus = PriceResolutionStatus.PRICE_UNAVAILABLE;
+            try {
+                const rawPrices = await this.circuitBreaker.execute(() => 
+                    withBoundedRetry(() => this.fetchPrices())
+                );
+                if (Array.isArray(rawPrices) && rawPrices.length > 0) {
+                    priceStatus = PriceResolutionStatus.PRICE_RESOLVED;
+                    // Attach prices to offerings
+                    for (const offering of offerings) {
+                        const matchingPrices = rawPrices.filter((p: any) => 
+                            p.productOfferingRef?.id === offering.id
+                        );
+                        if (matchingPrices.length > 0) {
+                            offering.prices = matchingPrices.map((p: any) => ({
+                                type: p.priceType || 'UNKNOWN',
+                                amount: p.price?.taxIncludedAmount?.value || 0,
+                                currency: p.price?.taxIncludedAmount?.unit || 'INR'
+                            }));
+                        }
+                    }
+                }
+            } catch {
+                // Prices unavailable is fine — graceful degradation
+            }
 
             return {
                 status: offerings.length > 0 ? CatalogueDiscoveryStatus.SUCCESS : CatalogueDiscoveryStatus.NO_RESULTS,
-                discoveryMode: DiscoveryMode.CONTEXTUAL_ELIGIBILITY,
-                eligibilityStatus: EligibilityStatus.EVALUATED,
-                priceResolutionStatus: PriceResolutionStatus.PRICE_RESOLVED,
+                discoveryMode: DiscoveryMode.BASIC_CATALOGUE_DISCOVERY,
+                eligibilityStatus: EligibilityStatus.NOT_EVALUATED,
+                priceResolutionStatus: priceStatus,
                 capabilitiesUsed: this.capabilities,
                 offerings
             };
@@ -55,7 +81,7 @@ export class InternalCatalogueAdapter implements CataloguePort {
             if (e instanceof ExternalServiceContractViolationError) {
                 return {
                     status: CatalogueDiscoveryStatus.CONTRACT_ERROR,
-                    discoveryMode: DiscoveryMode.CONTEXTUAL_ELIGIBILITY,
+                    discoveryMode: DiscoveryMode.BASIC_CATALOGUE_DISCOVERY,
                     eligibilityStatus: EligibilityStatus.NOT_EVALUATED,
                     priceResolutionStatus: PriceResolutionStatus.PRICE_UNAVAILABLE,
                     capabilitiesUsed: {},
@@ -70,7 +96,7 @@ export class InternalCatalogueAdapter implements CataloguePort {
     async getOffering(tenantId: string, offeringId: string, context?: CustomerDiscoveryContext): Promise<CatalogueOffering | null> {
         try {
             const rawResponse = await this.circuitBreaker.execute(() => 
-                withBoundedRetry(() => this.fetchInternalOfferingDetail(tenantId, offeringId, context))
+                withBoundedRetry(() => this.fetchOfferingDetail(offeringId))
             );
 
             if (!rawResponse) return null;
@@ -81,21 +107,34 @@ export class InternalCatalogueAdapter implements CataloguePort {
         }
     }
 
-    private async fetchInternalOfferings(context: CustomerDiscoveryContext): Promise<any[]> {
-        const headers = { 'x-tenant-id': context.tenantId };
-        // Internal catalogue takes the full context to perform eligibility and price resolution
-        const response = await this.httpClient.post(`${this.baseUrl}/api/v1/discovery/eligible-offerings`, context, { headers });
-        return response.data;
+    private async fetchOfferings(): Promise<any[]> {
+        // Call the real TMF620 endpoint on the Product Catalogue
+        const url = `${this.baseUrl}/productCatalogManagement/v5/productOffering`;
+        const res = await fetch(url, {
+            headers: { 'x-tenant-id': this.catalogueTenantId }
+        });
+        if (!res.ok) {
+            throw new ExternalServiceUnavailableError('InternalCatalogue', `HTTP ${res.status} from ${url}`);
+        }
+        return res.json();
     }
 
-    private async fetchInternalOfferingDetail(tenantId: string, offeringId: string, context?: CustomerDiscoveryContext): Promise<any> {
-        const headers = { 'x-tenant-id': tenantId };
-        const url = `${this.baseUrl}/api/v1/offerings/${offeringId}`;
-        const response = context ? 
-            await this.httpClient.post(`${url}/evaluate`, context, { headers }) : 
-            await this.httpClient.get(url, { headers });
-            
-        return response.data;
+    private async fetchPrices(): Promise<any[]> {
+        const url = `${this.baseUrl}/productCatalogManagement/v5/productOfferingPrice`;
+        const res = await fetch(url, {
+            headers: { 'x-tenant-id': this.catalogueTenantId }
+        });
+        if (!res.ok) return [];
+        return res.json();
+    }
+
+    private async fetchOfferingDetail(offeringId: string): Promise<any> {
+        const url = `${this.baseUrl}/productCatalogManagement/v5/productOffering/${offeringId}`;
+        const res = await fetch(url, {
+            headers: { 'x-tenant-id': this.catalogueTenantId }
+        });
+        if (!res.ok) return null;
+        return res.json();
     }
 
     private normalizeResponse(rawData: any): CatalogueOffering[] {
@@ -106,21 +145,25 @@ export class InternalCatalogueAdapter implements CataloguePort {
     }
 
     private mapToCatalogueOffering(item: any): CatalogueOffering {
-        if (!item.id || !item.name) {
+        // Map from TMF620 ProductOffering shape
+        const id = item.id || item.offering_id;
+        const name = item.name || item.offering_name;
+
+        if (!id || !name) {
             throw new ExternalServiceContractViolationError('InternalCatalogue', 'Offering missing required id or name');
         }
 
         return {
-            id: item.id,
-            name: item.name,
-            description: item.description,
-            lifecycleStatus: item.status || 'Active',
-            prices: (item.resolvedPrices || []).map((p: any) => ({
-                type: p.chargeType || 'UNKNOWN',
-                amount: p.amount || 0,
-                currency: p.currencyCode || 'XXX'
+            id,
+            name,
+            description: item.description || '',
+            lifecycleStatus: item.lifecycleStatus || item.status || 'Active',
+            prices: (item.productOfferingPrice || []).map((p: any) => ({
+                type: p.priceType || 'UNKNOWN',
+                amount: p.price?.taxIncludedAmount?.value || 0,
+                currency: p.price?.taxIncludedAmount?.unit || 'INR'
             })),
-            bundledOfferings: item.bundleContents || []
+            bundledOfferings: item.bundledProductOffering || []
         };
     }
 }
