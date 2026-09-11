@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🚀 Open Telecom CRM Engine
+#  Open Telecom CRM Engine
 
 **An enterprise-grade, multi-tenant, domain-driven CRM backend purpose-built for modern telecommunications and BSS architectures.**
 
