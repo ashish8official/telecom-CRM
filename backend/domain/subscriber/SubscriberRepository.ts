@@ -14,4 +14,5 @@ export interface ISubscriberRepository {
         tx?: ITransaction
     ): Promise<Subscriber>;
     insertStatusHistory(tenantId: string, data: Omit<SubscriberStatusHistory, 'id' | 'tenantId' | 'changedAt'>, tx?: ITransaction): Promise<SubscriberStatusHistory>;
+    findSubscribersByAccountIds(tenantId: string, accountIds: string[], tx?: ITransaction): Promise<Subscriber[]>;
 }

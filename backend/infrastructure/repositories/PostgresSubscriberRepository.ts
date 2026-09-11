@@ -120,4 +120,14 @@ export class PostgresSubscriberRepository implements ISubscriberRepository {
             changedBy: row.changed_by
         };
     }
+
+    async findSubscribersByAccountIds(tenantId: string, accountIds: string[], tx?: ITransaction): Promise<Subscriber[]> {
+        if (!accountIds || accountIds.length === 0) return [];
+        const client = this.getClient(tx);
+        const res = await client.query(
+            `SELECT * FROM subscriber WHERE tenant_id = $1 AND customer_account_id = ANY($2)`,
+            [tenantId, accountIds]
+        );
+        return res.rows.map(row => this.mapToSubscriber(row));
+    }
 }
