@@ -1,6 +1,6 @@
 <div align="center">
   
-# 🌐 Open Telecom CRM Engine
+# 🚀 Open Telecom CRM Engine
 
 **An enterprise-grade, multi-tenant, domain-driven CRM backend purpose-built for modern telecommunications and BSS architectures.**
 
@@ -23,18 +23,19 @@ Most telecom Business Support Systems (BSS) suffer from massive architectural co
 
 ---
 
-## ✨ Enterprise Features
+## 🛠️ Enterprise Features
 
 *   🏢 **True Horizontal Multi-Tenancy:** Strict row-level composite key isolation (`tenant_id`, `id`) baked into every table and repository. No cross-tenant data leaks.
-*   🏗️ **Pure Domain-Driven Design (DDD):** Completely isolated `domain`, `application`, and `infrastructure` layers. The core business rules are unaware of the database or APIs.
+*   📐 **Pure Domain-Driven Design (DDD):** Completely isolated `domain`, `application`, and `infrastructure` layers. The core business rules are unaware of the database or APIs.
 *   🔒 **Safe Concurrency:** Optimistic locking (`version` columns) on all critical lifecycle entities prevents lost updates during concurrent provisioning calls.
 *   🛡️ **Idempotent by Default:** Built-in `idempotency_key` handling protects against retry-storms from upstream Order Management (OM) systems.
-*   📦 **Infinite Account Hierarchies:** Native support for recursive Master/Child enterprise account structures with automated Ultimate Billing Account resolution.
+*   🌳 **Infinite Account Hierarchies:** Native support for recursive Master/Child enterprise account structures with automated Ultimate Billing Account resolution.
 *   📜 **Atomic Audit Trails:** Every lifecycle state change (e.g., Subscriber `ACTIVE` ➔ `SUSPENDED`) executes within strict ACID transactions alongside its historical audit record.
+*   🌐 **Customer 360 Aggregation:** In-memory, high-performance aggregation of the entire commercial structure, gracefully degrading if external Product Catalogues fail.
 
 ---
 
-## 🗺️ Domain Architecture
+## 🏗️ Domain Architecture
 
 This CRM maintains strict boundaries. A **Subscriber** is a *service relationship*, NOT a physical SIM card.
 
@@ -45,13 +46,13 @@ graph TD
     classDef account fill:#ff9671,stroke:#333,stroke-width:2px;
     classDef subscriber fill:#ff6f91,stroke:#333,stroke-width:2px;
 
-    P[👤 Party <br/> Legal/Physical Entity]:::party -->|Establishes| C[🤝 Customer <br/> Commercial Relationship]:::customer
+    P[🧑 Party <br/> Legal/Physical Entity]:::party -->|Establishes| C[🤝 Customer <br/> Commercial Relationship]:::customer
     
     C -->|Owns| MA[🏢 Master Account <br/> Billing Responsible]:::account
     MA -.->|Can Have| CA[🏢 Child Account <br/> Department/Branch]:::account
     
     MA ==>|Consumes| S1[📱 Subscriber A <br/> GSM PREPAID]:::subscriber
-    CA ==>|Consumes| S2[📡 Subscriber B <br/> FWA POSTPAID]:::subscriber
+    CA ==>|Consumes| S2[📱 Subscriber B <br/> FWA POSTPAID]:::subscriber
 
     style P color:#000
     style C color:#000
@@ -90,7 +91,7 @@ npm run db:migrate
 ```
 
 ### 5. Run the Test Suites
-The project guarantees stability through extensive automated testing.
+The project guarantees stability through extensive automated testing (100% integration coverage).
 ```bash
 npm run test:unit         # Fast, isolated domain tests
 npm run test:integration  # Full DB transaction & constraint tests
@@ -99,7 +100,7 @@ npm run test:all          # Run everything
 
 ---
 
-## 🚧 Future Roadmap (What's Next)
+## 📅 Future Roadmap (What's Next)
 To maintain pure boundaries, the following are intentionally deferred to future microservices or adapters:
 - [ ] **TM Forum Open APIs:** Native TMF629 (Customer Management) & TMF632 (Party Management) REST adapters wrapping our application layer.
 - [ ] **Telecom Resource Inventory:** Physical SIMs, ICCIDs, IMSIs, and MSISDN mapping via a decoupled Inventory domain.
